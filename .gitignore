@@ -1,0 +1,4 @@
+*.bat.tmp
+_t.bat
+runui.bat
+launcher_verify.log
