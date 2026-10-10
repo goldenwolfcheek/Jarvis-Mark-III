@@ -165,8 +165,9 @@ export default function App() {
   const renderTabContent = () => {
     if (isSettingsOpen) return <SettingsPage settings={settings} onUpdate={updateSettings} onReset={resetSettings} />
 
-    // Chat tab: sphere is the page; chat UI lives in the floating overlay
-    if (activeTab === 'chat' && !openFile) return null
+    // Chat tab: sphere is the page; chat UI lives in the floating overlay.
+    // (Unconditional now — the editor only ever renders on the Code tab.)
+    if (activeTab === 'chat') return null
 
     // Editors live on the Code tab: an open file only renders there.
     // Other tabs leave it behind (returning to Code brings it back).
@@ -248,7 +249,7 @@ export default function App() {
           />
         )}
         {renderTabContent()}
-        {(activeTab === 'code' || openFile) && (
+        {activeTab === 'code' && (
           <FileBrowser isOpen={fileBrowserOpen} onToggle={() => setFileBrowserOpen(p => !p)} projectPath={activeProjectPath} onProjectPathChange={activeSessionId ? (p) => setSessionProjectPath(activeSessionId, p) : undefined} onFileOpen={handleFileOpen} />
         )}
         {/* Floating file-browser toggle button (top-right, avoids titlebar) */}
