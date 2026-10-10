@@ -191,6 +191,11 @@ function TabsSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p:
   const WIDGET_OPTIONS = ['clock', 'weather', 'calendar', 'tasks', 'notes', 'system-stats', 'file-browser']
   const currentLayout = editingLayout ? (settings.pageLayouts[editingLayout]?.widgets || []) : []
 
+  const sphereFor = (id: string) => settings.sphereTabs[id] !== false
+  const toggleSphere = (id: string) => {
+    onUpdate({ sphereTabs: { ...settings.sphereTabs, [id]: !sphereFor(id) } })
+  }
+
   const toggleWidget = (widget: string) => {
     if (!editingLayout) return
     const current = settings.pageLayouts[editingLayout]?.widgets || []
@@ -210,6 +215,16 @@ function TabsSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p:
             <span className="text-lg w-8 text-center">{tab.icon || '—'}</span>
             <span className="text-sm text-jarvis-text flex-1">{tab.label}</span>
             <span className="text-xs text-jarvis-muted font-mono">{tab.id}</span>
+            <button
+              onClick={() => toggleSphere(tab.id)}
+              className={`text-xs px-2 py-0.5 rounded transition-colors flex items-center gap-1.5 ${
+                sphereFor(tab.id) ? 'text-jarvis-cyan bg-jarvis-cyan/10' : 'text-jarvis-muted hover:text-jarvis-text'}
+              `}
+              title="Toggle the animated sphere background on this tab"
+            >
+              <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: sphereFor(tab.id) ? 'var(--tw-shadow-color, #00d4ff)' : 'rgba(255,255,255,0.15)' }} />
+              Sphere {sphereFor(tab.id) ? 'on' : 'off'}
+            </button>
             {i > 0 && <button onClick={() => moveTab(i, i - 1)} className="text-jarvis-muted hover:text-jarvis-text text-xs px-1" title="Move left">↑</button>}
             {i < settings.tabs.length - 1 && <button onClick={() => moveTab(i, i + 1)} className="text-jarvis-muted hover:text-jarvis-text text-xs px-1" title="Move right">↓</button>}
             {tab.id !== 'chat' && <button onClick={() => setEditingLayout(editingLayout === tab.id ? null : tab.id)} className={`text-xs px-2 py-0.5 rounded transition-colors ${editingLayout === tab.id ? 'text-jarvis-cyan bg-jarvis-cyan/10' : 'text-jarvis-muted hover:text-jarvis-text'}`}>Layout</button>}

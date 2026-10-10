@@ -122,6 +122,9 @@ export default function NewsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden px-5 py-4">
+        <div className="rounded-xl bg-[#0d1420]/95 border border-jarvis-border/40 shadow-[0_4px_20px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col h-full">
+
       {/* Header */}
       <div className="px-5 py-3 border-b border-jarvis-border/30 bg-jarvis-surface/40 flex items-center gap-3 shrink-0">
         <span className="text-lg">📰</span>
@@ -178,7 +181,7 @@ export default function NewsPage() {
       )}
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-5 py-3">
+      <div className="flex-1 overflow-y-auto px-4 py-3">
         {loading && <div className="text-jarvis-muted text-sm py-6 text-center">Loading feed…</div>}
         {!loading && error && (
           <div className="text-jarvis-warning text-sm py-3 text-center px-4 rounded-lg border border-jarvis-warning/20 bg-jarvis-warning/5">
@@ -207,6 +210,8 @@ export default function NewsPage() {
             {items.length === 0 && <div className="text-jarvis-muted/50 text-sm text-center py-6">No stories.</div>}
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   )

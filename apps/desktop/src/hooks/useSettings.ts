@@ -22,6 +22,9 @@ const DEFAULT_SETTINGS = {
   // Page layouts (keyed by tab id — defines what widgets are on each page)
   pageLayouts: {} as Record<string, { widgets: string[] }>,
 
+  // Per-tab animated-sphere visibility (default: on everywhere)
+  sphereTabs: { chat: true, code: true, news: false, stocks: false } as Record<string, boolean>,
+
   // Voice
   voiceEnabled: false,
   wakeWord: 'Hey Jarvis',

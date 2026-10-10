@@ -240,7 +240,7 @@ export default function WidgetPanel({ widgets }: WidgetPanelProps) {
           const Comp = WIDGET_COMPONENTS[w]
           if (!Comp) return null
           return (
-            <div key={w} className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border/50 overflow-hidden">
+            <div key={w} className="bg-[#0d1420]/95 rounded-xl border border-jarvis-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.45)] overflow-hidden">
               <Comp />
             </div>
           )

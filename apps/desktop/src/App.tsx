@@ -224,7 +224,7 @@ export default function App() {
       <TitleBar status={status} onOpenSettings={openSettings} />
       <TabBar tabs={settings.tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex-1 relative min-h-0 overflow-hidden">
-        {!isSettingsOpen && !(openFile && activeTab === 'code') && (
+        {!isSettingsOpen && !(openFile && activeTab === 'code') && settings.sphereTabs[activeTab] !== false && (
           <SphereScene
             audioLevel={0}
             intensity={settings.sphereIntensity}

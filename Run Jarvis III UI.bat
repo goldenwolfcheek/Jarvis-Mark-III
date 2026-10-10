@@ -2,10 +2,11 @@
 title Jarvis Mark III - Launcher
 color 0B
 
-:: ══════════════════════════════════════════════════════════════
+:: ============================================================
 ::  JARVIS MARK III (Revised) - UI build + Electron launch
-::  Builds the renderer if needed, then opens the desktop app.
-:: ══════════════════════════════════════════════════════════════
+::  Simple and robust: always rebuild (vite is ~3s), always
+::  patch, then launch Electron detached.
+:: ============================================================
 
 set "DESKTOP=%~dp0apps\desktop"
 
@@ -23,10 +24,12 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-:: Check dependencies (first run only)
-if not exist "%DESKTOP%\node_modules\" (
-    echo  [1/3] First run - installing dependencies, this takes a few minutes...
-    cd /d "%DESKTOP%" && call npm install
+cd /d "%DESKTOP%" || (echo  [!] Cannot find %DESKTOP% & pause & exit /b 1)
+
+:: Install dependencies on first run only
+if not exist "node_modules\" (
+    echo  [1/3] First run - installing dependencies...
+    call npm install
     if %ERRORLEVEL% NEQ 0 (
         echo  [!] npm install failed. See errors above.
         pause
@@ -36,32 +39,27 @@ if not exist "%DESKTOP%\node_modules\" (
     echo  [1/3] Dependencies installed.
 )
 
-:: Build renderer if needed (dist missing or any src change is newer than dist)
-cd /d "%DESKTOP%"
-set "NEED_BUILD=0"
-if not exist "dist\index.html" set "NEED_BUILD=1"
-if %NEED_BUILD%==0 (
-    for /f %%i in ('powershell -NoProfile -Command "(Get-ChildItem -Recurse src,electron,*.json,*.ts,*.html | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime.Ticks"') do set "SRC_TIME=%%i"
-    for /f %%i in ('powershell -NoProfile -Command "(Get-Item dist\index.html).LastWriteTime.Ticks"') do set "DIST_TIME=%%i"
-    if %SRC_TIME% GTR %DIST_TIME% set "NEED_BUILD=1"
+:: Always rebuild (fast) — removes the whole staleness-detection bug class
+echo  [2/3] Building renderer...
+call npm run build
+if %ERRORLEVEL% NEQ 0 (
+    echo  [!] Build failed. See errors above.
+    pause
+    exit /b 1
 )
 
-if %NEED_BUILD%==1 (
-    echo  [2/3] Building renderer...
-    call npm run build
-    if %ERRORLEVEL% NEQ 0 (
-        echo  [!] Build failed. See errors above.
-        pause
-        exit /b 1
-    )
-    :: Inline module scripts must not carry crossorigin attr (file:// CORS freeze).
-    :: Node one-liner instead of powershell: predictable quoting in cmd.
-    node -e "const f=require('fs');let s=f.readFileSync('dist/index.html','utf8');s=s.split('<script type=\\\"module\\\" crossorigin>').join('<script type=\\\"module\\\">');f.writeFileSync('dist/index.html',s);console.log('crossorigin attr stripped');"
-) else (
-    echo  [2/3] Renderer bundle up to date.
+:: Inline module scripts must not carry crossorigin attr (file:// CORS freeze).
+:: Quote-free node one-liner so cmd cannot mangle the escaping.
+node -e "const f=require('fs');const q=String.fromCharCode(34);const a='<script type='+q+'module'+q+' crossorigin>';const b='<script type='+q+'module'+q+'>';let s=f.readFileSync('dist/index.html','utf8');s=s.split(a).join(b);f.writeFileSync('dist/index.html',s);console.log('crossorigin attr stripped');"
+if %ERRORLEVEL% NEQ 0 (
+    echo  [!] Build patch failed. See errors above.
+    pause
+    exit /b 1
 )
 
-:: Launch Electron
+:: Launch Electron detached, then let the console close.
+:: start /b inherits the console and means Electron dies with the bat in
+:: some launch contexts; plain `start` gives Electron its own detached line.
 echo  [3/3] Launching Jarvis...
-start "" /b cmd /c "npx electron ."
+start "Jarvis" /d "%DESKTOP%" "" cmd /c "npx electron ."
 exit /b 0
