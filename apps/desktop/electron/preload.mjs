@@ -11,4 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readDirectory: (dirPath) => ipcRenderer.invoke('readDirectory', dirPath),
   readFile: (filePath) => ipcRenderer.invoke('readFile', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('writeFile', filePath, content),
+  fetchText: (url) => ipcRenderer.invoke('fetch:text', url),
+  openExternal: (url) => ipcRenderer.send('openExternal', url),
+  getSystemStats: () => ipcRenderer.invoke('getSystemStats'),
+  getAppInfo: () => ipcRenderer.invoke('getAppInfo'),
 })

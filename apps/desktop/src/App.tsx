@@ -7,6 +7,8 @@ import ChatOverlay from '@/components/ChatOverlay'
 import SettingsPage from '@/components/SettingsPage'
 import FileBrowser from '@/components/FileBrowser'
 import WidgetPanel from '@/components/WidgetPanel'
+import NewsPage from '@/components/NewsPage'
+import StocksPage from '@/components/StocksPage'
 import TextEditor, { isCodeFile } from '@/components/TextEditor'
 import CodeEditor from '@/components/CodeEditor'
 import { useWebSocket } from '@/hooks/useWebSocket'
@@ -149,37 +151,44 @@ export default function App() {
       return <TextEditor filePath={openFile.path} fileName={openFile.name} onClose={handleFileClose} />
     }
 
-    const placeholders: Record<string, { icon: string; title: string; subtitle: string }> = {
-      code: { icon: '⌨️', title: 'Code Editor', subtitle: 'Monaco editor with AI autocomplete' },
-      news: { icon: '📰', title: 'News Feed', subtitle: 'Live news aggregation' },
-      stocks: { icon: '📈', title: 'Stocks Dashboard', subtitle: 'Real-time market data' },
-    }
-
-    const ph = placeholders[activeTab]
-    if (ph) {
-      // If this tab has widgets configured, render them instead of the placeholder
+    if (activeTab === 'news') {
+      // Widgets configured for this page override the default news view
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
-      if (pageWidgets && pageWidgets.length > 0) {
-        return <WidgetPanel widgets={pageWidgets} />
-      }
+      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} /> : <NewsPage />
+    }
+    if (activeTab === 'stocks') {
+      const pageWidgets = settings.pageLayouts[activeTab]?.widgets
+      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} /> : <StocksPage />
+    }
+    if (activeTab === 'code') {
+      const pageWidgets = settings.pageLayouts[activeTab]?.widgets
+      if (pageWidgets && pageWidgets.length > 0) return <WidgetPanel widgets={pageWidgets} />
       return (
         <div className="flex-1 flex items-center justify-center text-jarvis-muted pointer-events-none">
           <div className="text-center space-y-3">
-            <div className="text-5xl opacity-40">{ph.icon}</div>
-            <div className="text-lg font-medium">{ph.title}</div>
-            <div className="text-sm opacity-60">{ph.subtitle}</div>
+            <div className="text-5xl opacity-40">⌨️</div>
+            <div className="text-lg font-medium">Code Editor</div>
+            <div className="text-sm opacity-60">Open a file from the file browser, or ask Jarvis to write something.</div>
           </div>
         </div>
       )
     }
 
-    // Custom tabs — if widgets configured, render them
+    // Custom tabs — widgets if configured, otherwise an actionable empty state
     const pageWidgets = settings.pageLayouts[activeTab]?.widgets
     if (pageWidgets && pageWidgets.length > 0) {
       return <WidgetPanel widgets={pageWidgets} />
     }
-
-    return null
+    const customTab = settings.tabs.find(t => t.id === activeTab)
+    return (
+      <div className="flex-1 flex items-center justify-center text-jarvis-muted pointer-events-none">
+        <div className="text-center space-y-3">
+          <div className="text-5xl opacity-40">{customTab?.icon || '🧩'}</div>
+          <div className="text-lg font-medium">{customTab?.label || 'Page'}</div>
+          <div className="text-sm opacity-60 max-w-xs">Add widgets in Settings → Tabs &amp; Layout to build this page.</div>
+        </div>
+      </div>
+    )
   }
 
   return (
