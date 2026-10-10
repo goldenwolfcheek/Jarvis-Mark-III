@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Settings } from '@/hooks/useSettings'
 
 interface SettingsPageProps {
@@ -84,11 +84,26 @@ function Slider({ value, onChange, min, max, step, unit }: { value: number; onCh
 
 // ── General ──────────────────────────────────────────────────────────────
 function GeneralSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
+  const [version, setVersion] = useState('…')
+  useEffect(() => {
+    window.electronAPI?.getAppInfo()
+      .then(info => setVersion(`v${info?.version || '3.0.0'} · Electron ${info?.electron || ''}`))
+      .catch(() => setVersion('v3.0.0'))
+  }, [])
+  const testNotification = () => {
+    if (!settings.notifications.desktopEnabled) return
+    try { new Notification('Jarvis Mark III', { body: 'Notifications are working, Sir.' }) } catch {}
+  }
   return (<div><SectionHeader title="General" description="Basic application settings" />
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4">
-      <SettingRow label="App Name"><span className="text-sm text-jarvis-cyan font-medium">Jarvis Mark III</span></SettingRow>
-      <SettingRow label="Version"><span className="text-sm text-jarvis-muted">v0.1.0 — Phase 0</span></SettingRow>
+      <SettingRow label="App Name"><span className="text-sm text-jarvis-cyan font-medium">Jarvis Mark III — Revised</span></SettingRow>
+      <SettingRow label="Version"><span className="text-sm text-jarvis-muted font-mono">{version}</span></SettingRow>
       <SettingRow label="Show Timestamps" description="Display time on chat messages"><Toggle value={settings.showTimestamps} onChange={v => onUpdate({ showTimestamps: v })} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 mt-4">
+      <div className="text-sm font-medium text-jarvis-text mb-1">Quick Check</div>
+      <p className="text-xs text-jarvis-muted mb-3">Fire a test notification to confirm OS integration.</p>
+      <button onClick={testNotification} className="px-4 py-1.5 text-sm bg-jarvis-blue/20 text-jarvis-cyan rounded-lg hover:bg-jarvis-blue/30 transition-colors border border-jarvis-blue/20">Send Test Notification</button>
     </div></div>)
 }
 
