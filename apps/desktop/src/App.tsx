@@ -211,6 +211,7 @@ export default function App() {
         )}
         {renderTabContent()}
         <FileBrowser isOpen={fileBrowserOpen} onToggle={() => setFileBrowserOpen(p => !p)} projectPath={activeProjectPath} onProjectPathChange={activeSessionId ? (p) => setSessionProjectPath(activeSessionId, p) : undefined} onFileOpen={handleFileOpen} />
+        {/* Floating file-browser toggle button (top-right, avoids titlebar) */}
         <ChatOverlay
           isOpen={isChatOpen}
           onToggle={toggleChat}
@@ -219,7 +220,10 @@ export default function App() {
           isStreaming={isStreaming}
           modelName={settings.model}
           providerName={settings.provider}
-          sidebarOpen={sidebarOpen && showSidebar}
+          contentInset={{
+            left: showSidebar && sidebarOpen ? 256 : 0,
+            right: fileBrowserOpen ? 256 : 0,
+          }}
           chatHeight={settings.chatHeight}
           onModelChange={(m) => updateSettings({ model: m })}
           onProviderChange={(p) => updateSettings({ provider: p })}

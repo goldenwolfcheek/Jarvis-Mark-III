@@ -10,7 +10,7 @@ interface ChatOverlayProps {
   onStop?: () => void
   modelName?: string
   providerName?: string
-  sidebarOpen?: boolean
+  contentInset?: { left: number; right: number }
   chatHeight?: number
   onModelChange?: (model: string) => void
   onProviderChange?: (provider: string) => void
@@ -70,7 +70,7 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 // ── Main Component ───────────────────────────────────────────────────────
-export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage, isStreaming, onStop, modelName, providerName, sidebarOpen, chatHeight = 60, onModelChange, onProviderChange, savedProviders, sessionName }: ChatOverlayProps) {
+export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage, isStreaming, onStop, modelName, providerName, contentInset = { left: 0, right: 0 }, chatHeight = 60, onModelChange, onProviderChange, savedProviders, sessionName }: ChatOverlayProps) {
   const [input, setInput] = useState('')
   const [ttsEnabled, setTtsEnabled] = useState(false)
   const [sttActive, setSttActive] = useState(false)
@@ -124,7 +124,10 @@ export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage,
   const removeFile = (idx: number) => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-20 pointer-events-none">
+    <div
+      className="fixed bottom-0 z-30 pointer-events-none transition-all duration-150"
+      style={{ left: contentInset.left, right: contentInset.right }}
+    >
       {/* Toggle button */}
       <div className="flex justify-center pb-3 pointer-events-auto">
         <button
@@ -142,8 +145,8 @@ export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage,
       <div
         className={`pointer-events-auto transition-all duration-[280ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
           isOpen ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'
-        } ${sidebarOpen ? 'ml-64' : ''}`}
-        style={{ height: isOpen ? `${chatHeight}vh` : '0' }}
+        }`}
+        style={{ height: isOpen ? `${Math.max(35, Math.min(chatHeight, 90))}vh` : '0' }}
       >
         <div className="h-full flex flex-col bg-black/50 backdrop-blur-xl rounded-t-2xl border-t border-jarvis-border/30 overflow-hidden">
           {/* Header — provider + model selectors */}
