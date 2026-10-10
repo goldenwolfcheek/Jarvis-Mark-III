@@ -54,6 +54,11 @@ const DEFAULT_SETTINGS = {
     onCron: false,
   } as { desktopEnabled: boolean; soundEnabled: boolean; onMessage: boolean; onError: boolean; onTaskComplete: boolean; onCron: boolean },
 
+  // UI state (persisted so panels/tabs survive restarts)
+  activeTab: 'chat',
+  sidebarOpen: false,
+  chatOpenPerTab: {} as Record<string, boolean>,
+
   // Advanced
   backendUrl: 'http://localhost:11711',
   wsUrl: 'ws://localhost:11711/ws/chat',

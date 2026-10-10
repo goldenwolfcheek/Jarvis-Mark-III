@@ -20,23 +20,34 @@ function nextMsgId() { return `ui_${++msgIdCounter}_${Date.now()}` }
 
 export default function App() {
   const { settings, updateSettings, resetSettings } = useSettings()
-  const [activeTab, setActiveTab] = useState('chat')
-  const [chatOpenPerTab, setChatOpenPerTab] = useState<Map<string, boolean>>(new Map())
-  const [sessions, setSessions] = useState<{ id: string; title: string; projectPath?: string }[]>([])
+  const [activeTab, setActiveTabRaw] = useState(settings.activeTab)
+  const [chatOpenPerTab, setChatOpenPerTab] = useState<Map<string, boolean>>(new Map(Object.entries(settings.chatOpenPerTab)))
+  const [sidebarOpen, setSidebarOpenRaw] = useState(settings.sidebarOpen)
+  const [sessions, setSessions] = useState<{ id: string; title: string; projectPath?: string }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('jarvis-mark-iii-sessions') || '[]') } catch { return [] }
+  })
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sessionProjectPaths, setSessionProjectPaths] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('jarvis-mark-iii-session-paths') || '{}') } catch { return {} }
   })
   const [messages, setMessages] = useState<Message[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [fileBrowserOpen, setFileBrowserOpen] = useState(false)
   const [openFile, setOpenFile] = useState<{ path: string; name: string } | null>(null)
+
+  // Persist tab/panel state whenever it changes
+  const setActiveTab = useCallback((id: string) => { setActiveTabRaw(id); updateSettings({ activeTab: id }) }, [updateSettings])
+  const setSidebarOpen = useCallback((open: boolean) => { setSidebarOpenRaw(open); updateSettings({ sidebarOpen: open }) }, [updateSettings])
+
+  // Persist sessions list
+  useEffect(() => {
+    try { localStorage.setItem('jarvis-mark-iii-sessions', JSON.stringify(sessions)) } catch {}
+  }, [sessions])
 
   // Personality — synced with settings
   const [personality, setPersonality] = useState(settings.personality)
 
-  const { status, lastMessage, sendMessage } = useWebSocket()
+  const { status, lastMessage, sendMessage } = useWebSocket(settings.wsUrl)
   const streamingMsgIdRef = useRef<string | null>(null)
 
   const isChatOpen = chatOpenPerTab.get(activeTab) ?? false
@@ -47,11 +58,12 @@ export default function App() {
     setChatOpenPerTab(prev => {
       const next = new Map(prev)
       next.set(activeTab, !next.get(activeTab))
+      updateSettings({ chatOpenPerTab: Object.fromEntries(next) })
       return next
     })
-  }, [activeTab])
+  }, [activeTab, updateSettings])
 
-  const toggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), [])
+  const toggleSidebar = useCallback(() => { setSidebarOpen(!sidebarOpen) }, [sidebarOpen, setSidebarOpen])
   const openSettings = useCallback(() => setActiveTab('settings'), [])
 
   const setSessionProjectPath = useCallback((sessionId: string, path: string) => {
@@ -129,6 +141,16 @@ export default function App() {
     setActiveSessionId(null)
     setChatOpenPerTab(prev => { const next = new Map(prev); next.set('chat', true); return next })
     setActiveTab('chat')
+  }, [])
+
+  const handleRenameSession = useCallback((id: string, title: string) => {
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
+  }, [])
+
+  const handleDeleteSession = useCallback((id: string) => {
+    setSessions(prev => prev.filter(s => s.id !== id))
+    setActiveSessionId(prev => (prev === id ? null : prev))
+    setMessages([])
   }, [])
 
   const handleSelectSession = useCallback((id: string) => {
@@ -210,6 +232,8 @@ export default function App() {
             sessions={sessions}
             onSelectSession={handleSelectSession}
             onNewSession={handleNewSession}
+            onRenameSession={handleRenameSession}
+            onDeleteSession={handleDeleteSession}
             activeSessionId={activeSessionId}
             isOpen={sidebarOpen}
             onToggle={toggleSidebar}

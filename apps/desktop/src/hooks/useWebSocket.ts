@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConnectionStatus, WSMessage } from '@/types'
 
-const WS_URL = 'ws://localhost:11711/ws/chat'
 const RECONNECT_BASE = 1000
 const RECONNECT_MAX = 10000
 
-export function useWebSocket() {
+export function useWebSocket(wsUrl = 'ws://localhost:11711/ws/chat') {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -17,7 +16,7 @@ export function useWebSocket() {
     setStatus('connecting')
 
     try {
-      const ws = new WebSocket(WS_URL)
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
@@ -46,7 +45,7 @@ export function useWebSocket() {
     } catch {
       scheduleReconnect()
     }
-  }, [])
+  }, [wsUrl])
 
   const scheduleReconnect = useCallback(() => {
     if (reconnectRef.current) clearTimeout(reconnectRef.current)

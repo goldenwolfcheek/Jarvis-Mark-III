@@ -4,6 +4,8 @@ interface SidebarProps {
   sessions: { id: string; title: string }[]
   onSelectSession: (id: string) => void
   onNewSession: () => void
+  onRenameSession?: (id: string, title: string) => void
+  onDeleteSession?: (id: string) => void
   activeSessionId: string | null
   isOpen: boolean
   onToggle: () => void
@@ -33,7 +35,7 @@ interface CronJob {
   lastRun?: string
 }
 
-export default function Sidebar({ sessions, onSelectSession, onNewSession, activeSessionId, isOpen, onToggle, personality, onPersonalityChange, onSavePersonality }: SidebarProps) {
+export default function Sidebar({ sessions, onSelectSession, onNewSession, onRenameSession, onDeleteSession, activeSessionId, isOpen, onToggle, personality, onPersonalityChange, onSavePersonality }: SidebarProps) {
   const [activePreset, setActivePreset] = useState('custom')
   const [customPersonalities, setCustomPersonalities] = useState<{ name: string; text: string }[]>([])
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -132,9 +134,10 @@ export default function Sidebar({ sessions, onSelectSession, onNewSession, activ
 
   const handleRename = useCallback(() => {
     if (!renamingId || !renameText.trim()) { setRenamingId(null); return }
+    onRenameSession?.(renamingId, renameText.trim())
     setRenamingId(null)
     setRenameText('')
-  }, [renamingId, renameText])
+  }, [renamingId, renameText, onRenameSession])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -249,7 +252,7 @@ export default function Sidebar({ sessions, onSelectSession, onNewSession, activ
           style={{ left: contextMenu.x, top: contextMenu.y }} onClick={e => e.stopPropagation()}>
           <button onClick={() => { setRenamingId(contextMenu.sessionId); setRenameText(sessions.find(s => s.id === contextMenu.sessionId)?.title || ''); setContextMenu(null) }}
             className="w-full text-left px-3 py-1.5 text-xs text-jarvis-text hover:bg-white/5">✏️ Rename</button>
-          <button onClick={() => setContextMenu(null)}
+          <button onClick={() => { onDeleteSession?.(contextMenu.sessionId); setContextMenu(null) }}
             className="w-full text-left px-3 py-1.5 text-xs text-jarvis-error hover:bg-jarvis-error/10">🗑️ Delete</button>
         </div>
       )}
