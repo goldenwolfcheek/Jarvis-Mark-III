@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 interface WidgetPanelProps {
   widgets: string[]
+  widgetOpacity?: number
   onFileOpen?: (filePath: string, fileName: string) => void
 }
 
@@ -225,7 +226,7 @@ const WIDGET_COMPONENTS: Record<string, React.ComponentType<any>> = {
   'system-stats': SystemStatsWidget,
 }
 
-export default function WidgetPanel({ widgets }: WidgetPanelProps) {
+export default function WidgetPanel({ widgets, widgetOpacity = 0.95 }: WidgetPanelProps) {
   if (!widgets || widgets.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-jarvis-muted/50 text-sm">
@@ -234,13 +235,17 @@ export default function WidgetPanel({ widgets }: WidgetPanelProps) {
     )
   }
   return (
-    <div className="flex-1 h-full overflow-y-auto p-4">
+    <div className="flex-1 h-full overflow-y-auto p-4 relative">
       <div className="grid grid-cols-2 gap-4 h-full">
         {widgets.map(w => {
           const Comp = WIDGET_COMPONENTS[w]
           if (!Comp) return null
           return (
-            <div key={w} className="bg-[#0d1420]/95 rounded-xl border border-jarvis-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.45)] overflow-hidden">
+            <div
+              key={w}
+              className="rounded-xl border border-jarvis-border/50 shadow-[0_4px_20px_rgba(0,0,0,0.55)] overflow-hidden relative"
+              style={{ backgroundColor: `rgba(11, 17, 28, ${widgetOpacity})` }}
+            >
               <Comp />
             </div>
           )

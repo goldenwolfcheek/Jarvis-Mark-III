@@ -42,7 +42,7 @@ function parseRss(xml: string, sourceName: string): NewsItem[] {
   return items
 }
 
-export default function NewsPage() {
+export default function NewsPage({ widgetOpacity = 0.95 }: { widgetOpacity?: number }) {
   const [feeds, setFeeds] = useState<{ name: string; url: string }[]>(() => {
     try {
       const saved = localStorage.getItem(FEEDS_KEY)
@@ -123,7 +123,10 @@ export default function NewsPage() {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="flex-1 flex flex-col h-full overflow-hidden px-5 py-4">
-        <div className="rounded-xl bg-[#0d1420]/95 border border-jarvis-border/40 shadow-[0_4px_20px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col h-full">
+        <div
+          className="rounded-xl border border-jarvis-border/40 shadow-[0_4px_20px_rgba(0,0,0,0.55)] overflow-hidden flex flex-col h-full"
+          style={{ backgroundColor: `rgba(11, 17, 28, ${widgetOpacity})` }}
+        >
 
       {/* Header */}
       <div className="px-5 py-3 border-b border-jarvis-border/30 bg-jarvis-surface/40 flex items-center gap-3 shrink-0">

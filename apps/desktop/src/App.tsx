@@ -181,16 +181,16 @@ export default function App() {
     if (activeTab === 'news') {
       // Widgets configured for this page override the default news view
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
-      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} /> : <NewsPage />
+      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} widgetOpacity={settings.widgetOpacity} /> : <NewsPage widgetOpacity={settings.widgetOpacity} />
     }
     if (activeTab === 'stocks') {
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
-      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} /> : <StocksPage />
+      return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} widgetOpacity={settings.widgetOpacity} /> : <StocksPage />
     }
 
     if (activeTab === 'code') {
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
-      if (pageWidgets && pageWidgets.length > 0) return <WidgetPanel widgets={pageWidgets} />
+      if (pageWidgets && pageWidgets.length > 0) return <WidgetPanel widgets={pageWidgets} widgetOpacity={settings.widgetOpacity} />
       return (
         <div className="flex-1 flex items-center justify-center text-jarvis-muted pointer-events-none">
           <div className="text-center space-y-3">
@@ -205,7 +205,7 @@ export default function App() {
     // Custom tabs — widgets if configured, otherwise an actionable empty state
     const pageWidgets = settings.pageLayouts[activeTab]?.widgets
     if (pageWidgets && pageWidgets.length > 0) {
-      return <WidgetPanel widgets={pageWidgets} />
+      return <WidgetPanel widgets={pageWidgets} widgetOpacity={settings.widgetOpacity} />
     }
     const customTab = settings.tabs.find(t => t.id === activeTab)
     return (
@@ -230,6 +230,9 @@ export default function App() {
             intensity={settings.sphereIntensity}
             particleCount={settings.particleCount}
             glowColor={settings.glowColor}
+            bgColor={settings.sphereBgColor}
+            rotationSpeed={settings.sphereRotationSpeed}
+            pulseSpeedMult={settings.spherePulseSpeed}
           />
         )}
         {/* Sidebar — toggle only on chat tab, not settings */}

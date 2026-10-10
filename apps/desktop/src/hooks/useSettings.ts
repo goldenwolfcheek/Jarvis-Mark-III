@@ -31,16 +31,39 @@ const DEFAULT_SETTINGS = {
   ttsProvider: 'edge',
   sttProvider: 'local',
 
-  // Theme
+  // Theme / sphere
   sphereIntensity: 1.0,
   particleCount: 1500,
   glowColor: '#2763d1',
+  sphereBgColor: '#1e4a8a',
+  sphereRotationSpeed: 1.0,
+  spherePulseSpeed: 1.0,
   uiScale: 1.0,
+
+  // Widget card opacity (0.5–1.0, default 0.95)
+  widgetOpacity: 0.95,
 
   // Chat
   chatHeight: 60,
   showTimestamps: true,
   streamingSpeed: 50,
+
+  // Agent behavior (Hermes parameters)
+  agentTemperature: 0.7,
+  agentTopP: 0.9,
+  agentMaxLength: 4096,
+  agentTurnsContext: 80,
+  agentContextCompression: true,
+  agentAutoSkills: true,
+  agentSubagentsEnabled: true,
+  agentMaxParallelSubagents: 3,
+  agentTerminalBackend: 'local',
+
+  // Odysseus integration
+  odysseusEnabled: false,
+  odysseusUrl: 'http://localhost:7011',
+  odysseusApiKey: '',
+  odysseusFeatures: { docs: true, email: true, calendar: true, notes: true, tasks: true, research: true } as Record<string, boolean>,
 
   // Memory
   personality: 'You are Jarvis, a helpful AI assistant.',

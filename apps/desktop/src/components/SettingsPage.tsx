@@ -7,15 +7,17 @@ interface SettingsPageProps {
   onReset: () => void
 }
 
-type SettingsSection = 'general' | 'model' | 'tabs' | 'voice' | 'appearance' | 'memory' | 'mcp' | 'webhooks' | 'notifications' | 'advanced'
+type SettingsSection = 'general' | 'model' | 'agent' | 'integrations' | 'tabs' | 'voice' | 'appearance' | 'memory' | 'mcp' | 'webhooks' | 'notifications' | 'advanced'
 
 const SECTIONS: { id: SettingsSection; label: string; icon: string }[] = [
   { id: 'general', label: 'General', icon: '⚙️' },
   { id: 'model', label: 'Model & Provider', icon: '🧠' },
+  { id: 'agent', label: 'Agent (Hermes)', icon: '🤖' },
+  { id: 'integrations', label: 'Integrations (Odysseus)', icon: '🧩' },
   { id: 'tabs', label: 'Tabs & Layout', icon: '📑' },
   { id: 'voice', label: 'Voice', icon: '🎙️' },
   { id: 'appearance', label: 'Appearance', icon: '🎨' },
-  { id: 'memory', label: 'Memory', icon: '🧠' },
+  { id: 'memory', label: 'Memory', icon: '🗃️' },
   { id: 'mcp', label: 'MCP Servers', icon: '🔌' },
   { id: 'webhooks', label: 'Webhooks', icon: '🪝' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
@@ -29,6 +31,8 @@ export default function SettingsPage({ settings, onUpdate, onReset }: SettingsPa
     switch (activeSection) {
       case 'general': return <GeneralSection settings={settings} onUpdate={onUpdate} />
       case 'model': return <ModelSection settings={settings} onUpdate={onUpdate} />
+      case 'agent': return <AgentSection settings={settings} onUpdate={onUpdate} />
+      case 'integrations': return <IntegrationsSection settings={settings} onUpdate={onUpdate} />
       case 'tabs': return <TabsSection settings={settings} onUpdate={onUpdate} />
       case 'voice': return <VoiceSection settings={settings} onUpdate={onUpdate} />
       case 'appearance': return <AppearanceSection settings={settings} onUpdate={onUpdate} />
@@ -169,6 +173,63 @@ function ModelSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p
   </div>)
 }
 
+// ── Agent (Hermes) ──────────────────────────────────────────────────────
+function AgentSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
+  return (<div><SectionHeader title="Agent (Hermes)" description="Agent-loop behavior — these map onto Hermes agent parameters once the backend bridge is live." />
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Generation</div>
+      <SettingRow label="Temperature" description="0 = deterministic, 1 = creative"><Slider value={settings.agentTemperature} onChange={v => onUpdate({ agentTemperature: v })} min={0} max={1} step={0.05} /></SettingRow>
+      <SettingRow label="Top P" description="Nucleus sampling cutoff"><Slider value={settings.agentTopP} onChange={v => onUpdate({ agentTopP: v })} min={0.1} max={1} step={0.05} /></SettingRow>
+      <SettingRow label="Max Response Length" description="Output cap per agent response (tokens)"><TextInput value={settings.agentMaxLength.toString()} onChange={v => onUpdate({ agentMaxLength: parseInt(v) || 0 })} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Context & Memory</div>
+      <SettingRow label="Conversation Turns Kept" description="How many recent turns stay in full context"><Slider value={settings.agentTurnsContext} onChange={v => onUpdate({ agentTurnsContext: v })} min={10} max={200} step={5} /></SettingRow>
+      <SettingRow label="Context Compression" description="Summarize older history instead of dropping it"><Toggle value={settings.agentContextCompression} onChange={v => onUpdate({ agentContextCompression: v })} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Skills & Subagents</div>
+      <SettingRow label="Auto-Create Skills" description="Hermes may create reusable skills from repeated workflows"><Toggle value={settings.agentAutoSkills} onChange={v => onUpdate({ agentAutoSkills: v })} /></SettingRow>
+      <SettingRow label="Subagents (Delegation)" description="Allow Jarvis to spawn child agents for parallel work"><Toggle value={settings.agentSubagentsEnabled} onChange={v => onUpdate({ agentSubagentsEnabled: v })} /></SettingRow>
+      <SettingRow label="Max Parallel Subagents"><Slider value={settings.agentMaxParallelSubagents} onChange={v => onUpdate({ agentMaxParallelSubagents: v })} min={1} max={8} step={1} /></SettingRow>
+      <SettingRow label="Terminal Backend" description="Where agent terminal tools execute"><Select value={settings.agentTerminalBackend} onChange={v => onUpdate({ agentTerminalBackend: v })} options={[
+        { value: 'local', label: 'Local machine' },
+        { value: 'docker', label: 'Docker container' },
+        { value: 'remote', label: 'Remote sandbox' },
+      ]} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border/50 p-3 mt-2">
+      <p className="text-xs text-jarvis-muted">These preferences are stored now and apply to the Hermes agent once the backend bridge lands.</p>
+    </div>
+  </div>)
+}
+
+// ── Integrations (Odysseus) ─────────────────────────────────────────────
+function IntegrationsSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
+  const od = settings.odysseusFeatures
+  const updateFeature = (key: string, v: boolean) => onUpdate({ odysseusFeatures: { ...od, [key]: v } })
+  return (<div><SectionHeader title="Integrations (Odysseus)" description="Odysseus workspace services — documents, email, calendar, notes, tasks and research behind your own local service." />
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Connection</div>
+      <SettingRow label="Enable Odysseus" description="Route docs/email/calendar features through Odysseus"><Toggle value={settings.odysseusEnabled} onChange={v => onUpdate({ odysseusEnabled: v })} /></SettingRow>
+      <SettingRow label="Service URL" description="Odysseus FastAPI endpoint (Docker :7011, native :7000)"><TextInput value={settings.odysseusUrl} onChange={v => onUpdate({ odysseusUrl: v })} className="w-full font-mono" /></SettingRow>
+      <SettingRow label="API Key" description="Leave empty if your instance needs no auth"><TextInput type="password" value={settings.odysseusApiKey} onChange={v => onUpdate({ odysseusApiKey: v })} placeholder="Optional" /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1">
+      <div className="text-sm font-medium text-jarvis-text">Features</div>
+      <SettingRow label="Documents" description="Read/create documents via Odysseus"><Toggle value={od.docs !== false} onChange={v => updateFeature('docs', v)} /></SettingRow>
+      <SettingRow label="Email" description="IMAP/SMTP via Odysseus"><Toggle value={od.email !== false} onChange={v => updateFeature('email', v)} /></SettingRow>
+      <SettingRow label="Calendar" description="CalDAV sync via Odysseus"><Toggle value={od.calendar !== false} onChange={v => updateFeature('calendar', v)} /></SettingRow>
+      <SettingRow label="Notes"><Toggle value={od.notes !== false} onChange={v => updateFeature('notes', v)} /></SettingRow>
+      <SettingRow label="Tasks"><Toggle value={od.tasks !== false} onChange={v => updateFeature('tasks', v)} /></SettingRow>
+      <SettingRow label="Research"><Toggle value={od.research !== false} onChange={v => updateFeature('research', v)} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border/50 p-3 mt-2">
+      <p className="text-xs text-jarvis-muted">Nothing connects yet — the bridge server (backend phase) talks to Odysseus. Settings persist so the integration can flip on without code changes.</p>
+    </div>
+  </div>)
+}
+
 // ── Tabs & Layout ────────────────────────────────────────────────────────
 function TabsSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const [newTabName, setNewTabName] = useState('')
@@ -278,12 +339,27 @@ function VoiceSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p
 }
 
 // ── Appearance ───────────────────────────────────────────────────────────
+function ColorInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (<div className="flex items-center gap-2"><input type="color" value={value} onChange={e => onChange(e.target.value)} className="w-8 h-8 rounded-lg border border-jarvis-border cursor-pointer bg-transparent" /><span className="text-xs text-jarvis-muted font-mono">{value}</span></div>)
+}
+
 function AppearanceSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   return (<div><SectionHeader title="Appearance" description="Customize the look and feel" />
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Sphere</div>
+      <SettingRow label="Sphere Intensity" description="Breathing amplitude"><Slider value={settings.sphereIntensity} onChange={v => onUpdate({ sphereIntensity: v })} min={0} max={2} step={0.1} unit="x" /></SettingRow>
+      <SettingRow label="Particle Count"><Slider value={settings.particleCount} onChange={v => onUpdate({ particleCount: Math.round(v / 100) * 100 })} min={500} max={10000} step={100} /></SettingRow>
+      <SettingRow label="Rotation Speed" description="How fast the sphere spins"><Slider value={settings.sphereRotationSpeed} onChange={v => onUpdate({ sphereRotationSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
+      <SettingRow label="Pulse Speed" description="Breathing rhythm"><Slider value={settings.spherePulseSpeed} onChange={v => onUpdate({ spherePulseSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
+      <SettingRow label="Sphere Color"><ColorInput value={settings.glowColor} onChange={v => onUpdate({ glowColor: v })} /></SettingRow>
+      <SettingRow label="Starfield Color" description="Background sphere"><ColorInput value={settings.sphereBgColor} onChange={v => onUpdate({ sphereBgColor: v })} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Widgets & Cards</div>
+      <SettingRow label="Card Opacity" description="100% = fully opaque, easiest to read"><Slider value={settings.widgetOpacity} onChange={v => onUpdate({ widgetOpacity: v })} min={0.5} max={1} step={0.05} /></SettingRow>
+    </div>
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1">
-      <SettingRow label="Sphere Intensity"><Slider value={settings.sphereIntensity} onChange={v => onUpdate({ sphereIntensity: v })} min={0} max={2} step={0.1} unit="x" /></SettingRow>
-      <SettingRow label="Particle Count"><Slider value={settings.particleCount} onChange={v => onUpdate({ particleCount: Math.round(v / 100) * 100 })} min={500} max={3000} step={100} /></SettingRow>
-      <SettingRow label="Glow Color"><div className="flex items-center gap-2"><input type="color" value={settings.glowColor} onChange={e => onUpdate({ glowColor: e.target.value })} className="w-8 h-8 rounded-lg border border-jarvis-border cursor-pointer bg-transparent" /><span className="text-xs text-jarvis-muted font-mono">{settings.glowColor}</span></div></SettingRow>
+      <div className="text-sm font-medium text-jarvis-text">Chat</div>
       <SettingRow label="Chat Height"><Slider value={settings.chatHeight} onChange={v => onUpdate({ chatHeight: v })} min={30} max={90} step={5} unit="vh" /></SettingRow>
     </div></div>)
 }

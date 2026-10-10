@@ -4,25 +4,41 @@ import * as THREE from 'three'
 const CONFIG = {
   particleCount: 1500,
   sphereRadius: 2.0,
-  rotSpeed: 0.08,
-  pulseSpeed: 0.8,
+  rotSpeed: 0.08,       // multiplied by rotationSpeed setting
+  pulseSpeed: 0.8,      // multiplied by pulseSpeed setting
   starCount: 5000,
   starFieldRadius: 50,
   connectionDistance: 1.0,
   maxConnections: 4,
 }
 
-const SPHERE_COLOR = 0x2763d1
-const BG_SPHERE_COLOR = 0x1e4a8a
-
 interface SphereSceneProps {
   audioLevel?: number
   intensity?: number
   particleCount?: number
   glowColor?: string
+  /** Secondary (background starfield) color, hex string */
+  bgColor?: string
+  /** Rotation speed multiplier, 0-3 (default 1) */
+  rotationSpeed?: number
+  /** Breathing pulse speed multiplier, 0-3 (default 1) */
+  pulseSpeedMult?: number
 }
 
-export default function SphereScene({ audioLevel = 0, intensity = 1, particleCount = 1500, glowColor = '#2763d1' }: SphereSceneProps) {
+function normalizeHex(hex: string, fallback: number): number {
+  const c = hex?.replace('#', '')
+  return /^([0-9a-f]{6})$/i.test(c) ? parseInt(c, 16) : fallback
+}
+
+export default function SphereScene({
+  audioLevel = 0,
+  intensity = 1,
+  particleCount = 1500,
+  glowColor = '#2763d1',
+  bgColor = '#1e4a8a',
+  rotationSpeed = 1,
+  pulseSpeedMult = 1,
+}: SphereSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const audioLevelRef = useRef(audioLevel)
   const smoothAudioRef = useRef(0)
@@ -32,9 +48,15 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
   const intensityRef = useRef(intensity)
   const particleCountRef = useRef(particleCount)
   const glowColorRef = useRef(glowColor)
+  const bgColorRef = useRef(bgColor)
+  const rotationSpeedRef = useRef(rotationSpeed)
+  const pulseSpeedMultRef = useRef(pulseSpeedMult)
   useEffect(() => { intensityRef.current = intensity }, [intensity])
   useEffect(() => { particleCountRef.current = particleCount }, [particleCount])
   useEffect(() => { glowColorRef.current = glowColor }, [glowColor])
+  useEffect(() => { bgColorRef.current = bgColor }, [bgColor])
+  useEffect(() => { rotationSpeedRef.current = rotationSpeed }, [rotationSpeed])
+  useEffect(() => { pulseSpeedMultRef.current = pulseSpeedMult }, [pulseSpeedMult])
 
   useEffect(() => {
     const container = containerRef.current
@@ -76,7 +98,7 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
       }
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
       const mat = new THREE.PointsMaterial({
-        color: BG_SPHERE_COLOR, size: 0.20, transparent: true, opacity: 0.65,
+        color: normalizeHex(bgColorRef.current, 0x1e4a8a), size: 0.20, transparent: true, opacity: 0.65,
         blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
       })
       const mesh = new THREE.Points(geo, mat)
@@ -101,7 +123,7 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
       }
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
       const mat = new THREE.PointsMaterial({
-        color: SPHERE_COLOR, size, transparent: true, opacity: 0.85,
+        color: normalizeHex(glowColorRef.current, 0x2763d1), size, transparent: true, opacity: 0.85,
         blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
       })
       const mesh = new THREE.Points(geo, mat)
@@ -173,10 +195,11 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
 
     // Create objects
     const count = Math.max(100, Math.min(10000, particleCountRef.current))
+    const baseSphereColor = normalizeHex(glowColorRef.current, 0x2763d1)
     const bgSphere = createBackgroundSphere()
     const sphere = createSphere(count, CONFIG.sphereRadius, 0.05)
     const pairs = computeNeighbors(sphere.directions, count, CONFIG.connectionDistance / CONFIG.sphereRadius, CONFIG.maxConnections)
-    const lines = buildLineSegments(pairs, sphere.directions, CONFIG.sphereRadius, SPHERE_COLOR, 0.15)
+    const lines = buildLineSegments(pairs, sphere.directions, CONFIG.sphereRadius, baseSphereColor, 0.15)
     scene.add(lines)
     // HUD Rings
     function createRing(radius: number, yScale: number, zScale: number, yOffset: number, color: number, opacity: number) {
@@ -197,10 +220,10 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
       return line
     }
 
-    const ring1 = createRing(CONFIG.sphereRadius + 0.2, 0, 0.8, 0, SPHERE_COLOR, 0.10)
-    const ring2 = createRing(CONFIG.sphereRadius + 0.5, 0.3, 0.7, 0, SPHERE_COLOR, 0.10)
-    const ring3 = createRing(CONFIG.sphereRadius + 0.8, 0, 1, 0, SPHERE_COLOR, 0.08)
-    const ring4 = createRing(CONFIG.sphereRadius + 1.1, 0.3, 0.7, 0, SPHERE_COLOR, 0.06)
+    const ring1 = createRing(CONFIG.sphereRadius + 0.2, 0, 0.8, 0, baseSphereColor, 0.10)
+    const ring2 = createRing(CONFIG.sphereRadius + 0.5, 0.3, 0.7, 0, baseSphereColor, 0.10)
+    const ring3 = createRing(CONFIG.sphereRadius + 0.8, 0, 1, 0, baseSphereColor, 0.08)
+    const ring4 = createRing(CONFIG.sphereRadius + 1.1, 0.3, 0.7, 0, baseSphereColor, 0.06)
 
     // Resize
     function onResize() {
@@ -212,20 +235,43 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
     }
     window.addEventListener('resize', onResize)
 
+    // Live material color updates when settings change
+    let lastGlow = glowColorRef.current
+    let lastBg = bgColorRef.current
+    function applyColors() {
+      const g = normalizeHex(glowColorRef.current, 0x2763d1)
+      const b = normalizeHex(bgColorRef.current, 0x1e4a8a)
+      sphere.mat.color.setHex(g)
+      ;(lines.material as THREE.LineBasicMaterial).color.setHex(g)
+      ;(ring1.material as THREE.LineBasicMaterial).color.setHex(g)
+      ;(ring2.material as THREE.LineBasicMaterial).color.setHex(g)
+      ;(ring3.material as THREE.LineBasicMaterial).color.setHex(g)
+      ;(ring4.material as THREE.LineBasicMaterial).color.setHex(g)
+      ;(bgSphere.material as THREE.PointsMaterial).color.setHex(b)
+    }
+    applyColors()
+
     // Animation
     let animId: number
     function animate() {
       animId = requestAnimationFrame(animate)
+      if (glowColorRef.current !== lastGlow || bgColorRef.current !== lastBg) {
+        lastGlow = glowColorRef.current
+        lastBg = bgColorRef.current
+        applyColors()
+      }
       const time = Date.now() * 0.001
       smoothAudioRef.current += (audioLevelRef.current - smoothAudioRef.current) * 0.10
       const sLvl = smoothAudioRef.current
       const intens = intensityRef.current
+      const rotMult = rotationSpeedRef.current
+      const pulseMult = pulseSpeedMultRef.current
       const audioBoost = 1 + sLvl * 2.0
-      const scale = 1 + 0.06 * intens * Math.sin(time * CONFIG.pulseSpeed) + sLvl * 0.15
+      const scale = 1 + 0.06 * intens * Math.sin(time * CONFIG.pulseSpeed * pulseMult) + sLvl * 0.15
       const radius = CONFIG.sphereRadius * scale
 
-      sphere.mesh.rotation.y += CONFIG.rotSpeed * 0.003 * audioBoost * intens
-      lines.rotation.y += CONFIG.rotSpeed * 0.003 * audioBoost * intens
+      sphere.mesh.rotation.y += CONFIG.rotSpeed * 0.003 * rotMult * audioBoost * intens
+      lines.rotation.y += CONFIG.rotSpeed * 0.003 * rotMult * audioBoost * intens
 
       // Update particle positions
       const pos = sphere.mesh.geometry.attributes.position as THREE.BufferAttribute
@@ -240,18 +286,18 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
       pos.needsUpdate = true
 
       updateLinePositions(lines, radius)
-      lines.material.opacity = 0.08 + sLvl * 0.2 + 0.02 * Math.sin(time * 0.4)
+      lines.material.opacity = 0.08 + sLvl * 0.2 + 0.02 * Math.sin(time * 0.4 * pulseMult)
       sphere.mat.size = 0.05 * (1 + sLvl * 1.5)
 
-      ring1.rotation.y += 0.003 * audioBoost
-      ring2.rotation.y += 0.0025 * audioBoost
-      ring2.rotation.x += 0.001 * audioBoost
-      ring3.rotation.y += 0.002 * audioBoost
-      ring4.rotation.y += 0.0015 * audioBoost
-      ring4.rotation.x += 0.0008 * audioBoost
+      ring1.rotation.y += 0.003 * rotMult * audioBoost
+      ring2.rotation.y += 0.0025 * rotMult * audioBoost
+      ring2.rotation.x += 0.001 * rotMult * audioBoost
+      ring3.rotation.y += 0.002 * rotMult * audioBoost
+      ring4.rotation.y += 0.0015 * rotMult * audioBoost
+      ring4.rotation.x += 0.0008 * rotMult * audioBoost
 
-      bgSphere.rotation.y += 0.0002
-      bgSphere.rotation.x += 0.0001
+      bgSphere.rotation.y += 0.0002 * rotMult
+      bgSphere.rotation.x += 0.0001 * rotMult
 
       camera.position.x = Math.sin(time * 0.1) * 0.08
       camera.position.y = 1.2 + Math.cos(time * 0.12) * 0.05
@@ -287,3 +333,4 @@ export default function SphereScene({ audioLevel = 0, intensity = 1, particleCou
 
   return <div ref={containerRef} className="fixed inset-0 z-0" style={{ pointerEvents: 'none' }} />
 }
+
