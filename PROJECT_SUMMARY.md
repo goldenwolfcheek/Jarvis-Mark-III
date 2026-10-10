@@ -1,0 +1,173 @@
+# Jarvis Mark III — Project Summary & Tracker
+
+> Created: 2026-10-10 by Buffy (Codebuff agent), for the user ("Sir").
+> Location: `I:\Code Shit\OpenCode\Projects\Jarvis Mark III - Revised\`
+> Purpose: single source of truth for what exists, what's missing, current bugs, and lessons learned during development. Update every session.
+
+---
+
+## 1. What Jarvis Mark III Is
+
+A highly customizable, Electron-based desktop AI assistant ("J.A.R.V.I.S."). Design DNA comes from Mark 1 → Mark II → Mark III:
+
+- **Dark UI, deep-space blue accents** — palette anchored on `#2763d1` (sphere blue), `#00d4ff` (HUD cyan), `#4a9eff` (glow) over `#0a0f1a` near-black.
+- **Animated Three.js particle sphere** as the heart of the app: breathing/pulsing ring of particles, starfield background, slow rotation, audio-reactive pulse intended for TTS output.
+- **Layered HUD:** title bar → tab bar → free-floating chat overlay (resizable height, per-tab open state) → left slide-in drawer (sessions, memory, skills, tools, personalities) → bottom info bar (model/provider/tools/version).
+- **Backend = Hermes Agent (NousResearch) + Odysseus (odysseus-dev),** kept behind a local API so the UI never depends on their internals. Hermes provides agent loop, tools, MCP, memory, skills, subagent delegation; Odysseus adds sessions/workspace services (docs, email, notes, tasks, calendar, research).
+
+## 2. Analysis of the Existing Projects
+
+### Mark 1 (`..\Jarvis Mark 1`)
+- Browser app served by a Python/FastAPI backend (port 9119). No Electron.
+- `frontend/index.html` is one giant standalone file — JARVIS theme born here: two animated spheres, radial glow, subtitle bar above the sphere, chat input at bottom, "SYSTEM ONLINE" status badge.
+- Backend already had Python backend + agent + tools + PC control (subset of later versions).
+- Minimally useful for Mark III beyond confirmed visual lineage; superseded by Mark II.
+
+### Mark II (`..\Jarvis Mark II`)
+- **The most feature-complete ancestor** and the main logic reference.
+- **Structure:** Python/FastAPI backend (`jarvis/`) on port 11711 + Electron+React+Vite+Tailwind frontend (`electron_frontend/`).
+- **Backend modules (reuse/port targets):**
+  - `agent/` — agent_loop (streaming turn loop, tool execution), llm_core (OpenAI-compatible async HTTP), model_discovery.
+  - `providers/` — ProviderProfile dataclass + 11 built-in profiles (openai, anthropic, ollama, openrouter, google, lmstudio, custom, opencode-zen…), key management via XOR-encrypted keystore.
+  - `tools/` — decorator-registry with schema generation; base tools (files/terminal/web), web_tools (DuckDuckGo search + fetch), pc_control (~15 Windows automation tools: apps, windows, keyboard, mouse, volume).
+  - `speech/` — edge-tts engine. `memory/store.py` — file-based MEMORY.md + USER.md injection. `state/db.py` — SQLite sessions/messages/KV.
+  - `skills/loader.py` — dynamic Python skill loading.
+- **Frontend components (UI reference):** TopBar (frameless drag, centered connection dot), SphereScene.jsx (particle sphere, connection lines, audio reactive), ChatModule (glass panel, streaming, slash commands, reasoning effort), LeftDrawer (sessions/memory/skills + context menus), SettingsPanel (slide-in from right: providers/models/API keys/TTS/theme/tray), InfoBar (model|provider|tools|version), TodoSidebar (task steps from agent), subtitles during TTS playback.
+- **Electron features to port:** system tray (`main.cjs`: Tray + icon, Hide-to-Tray on close, Show/Quit menu, double-click restore), auto-start on boot via registry key (`HKCU\...\Run`), startup console management. **Wake-word was NOT implemented in Mark II** — it's a Mark III goal.
+- Config persisted to `~/.jarvis/config.yaml`, port 11711 isolated from other projects.
+
+### Mark III (`..\Jarvis Mark III`) — the near-final UI, but backend is mock
+- **This is the base Mark III - Revised will be built from.** Its `apps/desktop` (~3,100 lines) is the closest thing to the target UI.
+- **Structure:** `apps/desktop` (Electron + React + TS + Vite + Tailwind, three on ^0.170), `server/` (FastAPI on 11711 — but chat is **mock responses**), `hermes-base/` (vendored Hermes v0.19 source, for reference/future integration), `hermes-ui-reference/` (archived Hermes UI for parity checking).
+- **What the UI has (mostly good, keep it):**
+  - `TitleBar` — frameless, drag region, JARVIS label + centered connection status + settings gear + window controls.
+  - `TabBar` — centered text tabs, active tab underlined with glowing cyan bar; tabs defined in settings (Chat/Code/News/Stocks), with closable + custom-tab support built into the data model.
+  - `SphereScene.tsx` — TypeScript port of Mark II sphere: 5000-star field sphere, 1500-particle main sphere, connection lines, breathing pulse, colors from settings, WebGL fallback.
+  - `ChatOverlay` — floating chat panel over the sphere, per-tab visibility, resizable height, message bubbles (user right/blue, Jarvis left/dark w/ cyan name), simple markdown-in-mentions code blocks, streaming indicator dots, model/provider pickers, file attachment slot.
+  - `Sidebar` — left slide-in drawer: sessions list (rename/delete context menu), personality presets (Jarvis/Engineer/Kawaii/etc + custom), skills/tools lists (empty placeholders), memory editor.
+  - `SettingsPage` — full-page settings with 10 sections (General, Model & Provider, Tabs & Layout, Voice, Appearance, Memory, MCP, Webhooks, Notifications, Advanced). Settings model covers: model/provider/apiKey/baseUrl/contextLength/maxTokens/savedProviders, tabs, pageLayouts (widgets per page), voice (enabled, wake word "Hey Jarvis", tts/stt providers), theme (sphere intensity, particle count, glow color, uiScale), chat (height, timestamps, streaming speed), memory (personality, userProfile, vaultPath), notifications, backendUrl/wsUrl.
+  - `WidgetPanel` — per-page widget system (Clock, Notes, Tasks; page layout stored in settings). News/Stocks tabs currently show placeholders.
+  - `FileBrowser` + `TextEditor` (CodeMirror 6) + `CodeEditor` (Monaco) — wired to Electron IPC for folder pick/read/write.
+- **What it's missing (the wall the previous attempt hit):**
+  - `server/routes/chat.py` returns canned mock responses — no LLM at all.
+  - No real Hermes/Odysseus integration; hermes-base is vendored but unused.
+  - No voice at all (no STT, no TTS, no wake word) — only settings placeholders.
+  - No system tray, no auto-start, no screen-awareness tools.
+  - Sessions/users do not persist to the backend (in-memory store).
+  - Sidebar skills/tools lists render nothing.
+  - News/Stocks are placeholder pages; widget system exists but sparse.
+- Git history: clean, on `main`, last commits are Electron/Vite launch fixes. Previous agent got stuck here with a weak model; UI was declared "more or less there".
+
+### Pain points inherited from previous attempts (avoid repeating)
+1. Backend was built as mocks, then never replaced — this time, Hermes/Odysseus integration is the plan from day one.
+2. Config duplication in Mark II (frontend wrote `active_provider`, backend read `provider`) — single settings schema, written from one place.
+3. Frameless Electron + dev server race (Mark III commits show repeated ERR_CONNECTION_REFUSED whack-a-mole) — solve once with a documented dev/boot order and wait-on, then stop touching it.
+4. localStorage-only state in Mark III renderer lost data across machines/tray restarts — persist session state on the backend (Hermes sessions / SQLite).
+
+## 3. Target Architecture (Hermes + Odysseus)
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Electron app (apps/desktop)                               │
+│  React + TS + Tailwind + Three.js sphere                   │
+│  Jarvis HUD: TitleBar · TabBar · ChatOverlay · Sidebar ·   │
+│  Settings · WidgetPanel · Voice HUD (wake/STT/TTS)         │
+└─────────────┬──────────────────────────────┬───────────────┘
+              │ REST + WebSocket (localhost) │ Electron IPC (fs, tray, screen)
+┌─────────────▼──────────────────┐  ┌────────▼────────────────────┐
+│  Jarvis bridge server (Python) │  │  Electron main process      │
+│  • chat WS → Hermes agent loop │  │  • frameless window, tray   │
+│  • providers via Hermes        │  │  • wake word (mic monitor)  │
+│  • ~/.jarvis/config.yaml       │  │  • screen capture IPC       │
+│  • voice: wake word + STT +    │  │  • auto-start (registry)    │
+│    edge-tts                    │  └─────────────────────────────┘
+│  • news/stocks feeds           │
+└─────────────┬──────────────────┘
+   ┌──────────┴─────────────┐
+   ▼                        ▼
+┌───────────────┐   ┌───────────────────────────────┐
+│ Hermes Agent  │   │ Odysseus services             │
+│ (MIT, Python) │   │ (AGPL-3.0, Python/FastAPI)    │
+│ agent loop,   │   │ sessions, memory, docs, email,│
+│ tools, MCP,   │   │ notes, tasks, calendar,       │
+│ memory, skills│   │ research                      │
+│ subagents     │   │                               │
+└───────────────┘   └───────────────────────────────┘
+```
+
+**Integration facts learned (from research, verify against vendored source at build time):**
+- Hermes Agent: MIT, Python, current releases ~v0.21.x (vendored copy in Mark III is 0.19). Official integration path for third-party UIs is its **OpenAI-compatible HTTP API** (`/v1/chat/completions`, SSE, default port 8642, `API_SERVER_ENABLED=true`). Also supports MCP (local stdio + remote HTTP with per-server tool filtering), MEMORY.md/USER.md, SQLite FTS5 sessions, agentskills.io skills, provider adapters (Nous, OpenAI, Anthropic, OpenRouter, Google, custom endpoints, local models), and `delegate_task` subagents. Docs: https://hermes-agent.nousresearch.com/docs/
+- Odysseus: AGPL-3.0-or-later, Python/FastAPI workspace (sessions, memory, skills, MCP, docs, IMAP/SMTP email, CalDAV calendar, notes/tasks/research, STT/TTS services). Deployed as its own service (Docker default port 7011 / native 7000). Not a documented embeddable library — treat as a service behind the bridge, pin to specific routes you depend on. Repo: https://github.com/odysseus-dev/odysseus
+- **License note:** AGPL applies if Jarvis ever serves Odysseus to network users unmodified. For a personal-use desktop app this is acceptable; flag it if the user ever wants to redistribute. Hermes (MIT) is unproblematic.
+- User's plan: copy their existing Hermes skills directory into Jarvis so those capabilities come along.
+
+**Bridge strategy (why a middle layer):** neither Hermes' UI nor Odysseus' UI fits the Jarvis HUD, and their APIs differ (OpenAI-compatible vs ad-hoc routes). A thin FastAPI bridge on port 11711 gives one stable WS + REST surface to the Electron app and lets Hermes/Odysseus versions move without breaking the UI.
+
+## 4. Feature Master Plan (acceptance-checked)
+
+Ordered so UI is finished first (user's explicit preference), then backends, then feature systems.
+
+### A. UI (current focus — finish before backend)
+- [x] Dark theme, blue-cyan accents, Tailwind `jarvis` palette (from Mark III).
+- [x] Animated sphere (stars, breathing particles, connection lines, WebGL fallback).
+- [x] Frameless title bar with connection status + window controls.
+- [ ] **Polish pass on Mark III UI before backend integration (IN PROGRESS):** fix layout bugs from Mark III, unify palette tokens, consistent glow/shadow language, animated tab transitions, reduced-motion support.
+- [ ] Tab system final: add/disable/rename/close tabs from settings; built-in pages: Chat, Code, News (RSS/API feed), Stocks (later), plus user-created custom pages.
+- [ ] Each tab page customizable with widget grid (Clock, Notes, Tasks, then News/Stocks/System widgets).
+- [ ] Sidebar: sessions (real persistence once Hermes lands), memory view, skills browser, tools list, custom personalities.
+- [ ] Settings menu full pass: General/Model & Provider/Tabs/Voice/Appearance/Memory/MCP/Webhooks/Notifications/Advanced — every item actually wired to config that the backend reads later.
+- [ ] Voice HUD: mic indicator, wake-word listening state ("Hey Jarvis"), TTS toggle.
+- [ ] System tray behavior + tray icon menu (port from Mark II Electron).
+
+### B. Backend core (Hermes integration)
+- [ ] Decide Hermes usage mode: vendor (like `hermes-base`) vs pinned release vs API-server subprocess. Preference: run Hermes in-process from venv? → confirm with user when we get here.
+- [ ] Bridge server: WS chat endpoint proxying Hermes agent loop with streaming deltas; tool-call pill events; session persistence to Hermes SQLite.
+- [ ] Provider config: single `~/.jarvis/config.yaml` (model, provider, api keys, providers list) written once from renderer settings.
+- [ ] Skills: wire user's Hermes skills dir; sidebar browser lists real skills with enable/disable.
+
+### C. Odysseus integration (memory + workspace)
+- [ ] Odysseus as sidecar service; bridge exposes memory/docs/calendar/email/search from it.
+- [ ] Memory UI (sidebar) reads/writes Odysseus memory; Hermes memory remains the agent-facing store initially.
+
+### D. Voice
+- [ ] Wake word "Hey Jarvis" listening (openWakeWord recommended, per Mark III VOICE-ENGINE.md; fallback: whisper-transcribe-and-match).
+- [ ] STT (faster-whisper local) → send message; TTS (edge-tts) with audio-reactive sphere pulse + subtitles (port Mark II subtitle animation).
+- [ ] Works while window hidden to tray (Python process keeps mic loop alive).
+
+### E. System capabilities
+- [ ] Screen awareness: Electron `desktopCapturer` screenshots on demand (IPC), plus window/monitor listing; passed to vision-capable model.
+- [ ] Built-in MCP: ship presets for "rea" and Ghidra-MCP (enabled by default, listed in settings MCP section).
+- [ ] PC control tools port (Mark II pc_control) as Hermes MCP/tool integration.
+- [ ] News/Stocks data feeds in bridge (news first).
+
+### F. Distribution
+- [ ] Installer/launcher parity with earlier marks: start batch + silent launcher, auto-start registry option.
+
+## 5. Current Status (update every session)
+
+- **Phase:** Analysis complete. UI polish pass is next, per user preference (finish UI before backend).
+- **Repo state (Mark III - Revised):** not a git repo yet (only `Jarvis Mark III` upstream is). `init` when the user is ready.
+- **Working copy:** fresh; nothing copied yet from Mark III apps/desktop.
+
+## 6. Current Bugs / Known Issues
+
+- None yet (no code written in this workspace). Bugs found in Mark III source worth pre-empting:
+  - Chat render of markdown is ad-hoc (only code blocks); no bold/lists/links — include a proper markdown renderer in the polish pass.
+  - `useWebSocket` reconnect noise (Mark III had a fix suppressing error spam when backend is down — keep that behavior).
+  - TypeScript any-types sprinkled in App.tsx message handling (`(history: any[])`) — type them when backend schema exists.
+
+## 7. Lessons Learned
+
+- Analysis revealed the active workspace (`Jarvis Mark III - Revised`) is empty except `.freebuff/` — Mark III's codebase was cloned from its own git repo for analysis; nothing has been copied into the new workspace yet.
+- Hermes integration via its documented OpenAI-compatible HTTP API is the most stable contract; deeper in-process integration should be a deliberate, isolated decision (Hermes 0.19 vendored copy differs from current 0.21.x).
+- Odysseus is service-shaped, not library-shaped. Its AGPL license is fine for personal use; if the user redistribute Jarvis, this needs revisiting.
+- The Mark II Electron main process is a solid, working reference for tray + auto-start-on-boot on Windows; prefer porting it over writing new.
+- Port 11711 is the established Jarvis backends port across marks; keep it.
+- Wake word was never implemented in any prior mark — treat as novel work, prototype early with a spike before committing.
+
+## 8. Open Questions for the User
+
+1. Hermes usage mode: run Hermes' API server as a subprocess and talk HTTP (stable, documented), vendored in-process (like Mark III's hermes-base), or pinned-release venv import? (Preference stated above in §4B; confirmation needed when backend phase starts.)
+2. Odysseus deployment: Docker sidecar vs native Python service on this Windows machine?
+3. Should the widget/News/Stocks feeds be live-API-backed from the start of their phase, or mock-first then wire?
+4. Git init in this workspace — user preference on history/remote before scaffolding?
