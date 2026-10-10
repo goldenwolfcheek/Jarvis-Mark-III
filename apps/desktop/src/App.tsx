@@ -168,8 +168,9 @@ export default function App() {
     // Chat tab: sphere is the page; chat UI lives in the floating overlay
     if (activeTab === 'chat' && !openFile) return null
 
-    // If a file is open, show the editor in the main content area
-    if (openFile) {
+    // Editors live on the Code tab: an open file only renders there.
+    // Other tabs leave it behind (returning to Code brings it back).
+    if (openFile && activeTab === 'code') {
       if (isCodeFile(openFile.name)) {
         return <CodeEditor filePath={openFile.path} fileName={openFile.name} onClose={handleFileClose} />
       }
@@ -222,7 +223,7 @@ export default function App() {
       <TitleBar status={status} onOpenSettings={openSettings} />
       <TabBar tabs={settings.tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex-1 relative min-h-0 overflow-hidden">
-        {!isSettingsOpen && !openFile && (
+        {!isSettingsOpen && !(openFile && activeTab === 'code') && (
           <SphereScene
             audioLevel={0}
             intensity={settings.sphereIntensity}
