@@ -5,7 +5,11 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const isDev = !app.isPackaged
+// Dev mode is opt-in via JARVIS_DEV=1 (the Dev launcher sets it).
+// app.isPackaged is always false when running from node_modules, so it can't
+// be the signal — using it made the production launcher load a dead Vite URL
+// and show a blank chrome-error page.
+const isDev = process.env.JARVIS_DEV === '1'
 const VITE_DEV_URL = 'http://127.0.0.1:5174'
 
 let mainWindow

@@ -13,10 +13,10 @@ const DEFAULT_SETTINGS = {
 
   // Tabs
   tabs: [
-    { id: 'chat', label: 'Chat', icon: '', closable: false },
-    { id: 'code', label: 'Code', icon: '', closable: true },
-    { id: 'news', label: 'News', icon: '', closable: true },
-    { id: 'stocks', label: 'Stocks', icon: '', closable: true },
+    { id: 'chat', label: 'Chat', icon: '💬', closable: false },
+    { id: 'code', label: 'Code', icon: '⚡', closable: true },
+    { id: 'news', label: 'News', icon: '📰', closable: true },
+    { id: 'stocks', label: 'Stocks', icon: '📈', closable: true },
   ] as { id: string; label: string; icon: string; closable: boolean }[],
 
   // Page layouts (keyed by tab id — defines what widgets are on each page)
@@ -66,7 +66,16 @@ const STORAGE_KEY = 'jarvis-mark-iii-settings'
 function loadSettings(): Settings {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) }
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      // Repair pre-icon tabs so built-in tabs always show their emoji
+      const iconDefaults: Record<string, string> = { chat: '💬', code: '⚡', news: '📰', stocks: '📈' }
+      if (Array.isArray(parsed.tabs)) {
+        parsed.tabs = parsed.tabs.map((t: { id: string; icon: string }) =>
+          (!t.icon && iconDefaults[t.id]) ? { ...t, icon: iconDefaults[t.id] } : t)
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed }
+    }
   } catch {}
   return { ...DEFAULT_SETTINGS }
 }

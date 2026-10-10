@@ -14,6 +14,8 @@ export default {
           muted: '#64748b',
           border: 'rgba(255,255,255,0.08)',
           success: '#22c55e',
+          green: '#22c55e', // alias — existing components use jarvis-green
+          green: '#22c55e',  // alias — existing components use jarvis-green
           warning: '#f59e0b',
           error: '#ef4444',
         },

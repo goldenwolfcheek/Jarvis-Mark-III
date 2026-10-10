@@ -55,7 +55,9 @@ if %ERRORLEVEL% NEQ 0 (
 echo  [2/3] Vite ready.
 
 echo  [3/3] Launching Electron (hot-reload against Vite)...
+set "JARVIS_DEV=1"
 npx electron .
+set "JARVIS_DEV="
 
 echo.
 echo  Electron closed. Shutting Vite down...
