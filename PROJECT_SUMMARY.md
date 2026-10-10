@@ -145,9 +145,23 @@ Ordered so UI is finished first (user's explicit preference), then backends, the
 
 ## 5. Current Status (update every session)
 
-- **Phase:** Analysis complete. UI polish pass is next, per user preference (finish UI before backend).
-- **Repo state (Mark III - Revised):** not a git repo yet (only `Jarvis Mark III` upstream is). `init` when the user is ready.
-- **Working copy:** fresh; nothing copied yet from Mark III apps/desktop.
+- **Phase:** UI build — first full pass complete and committed to git (repo initialized on `main`).
+- **This session's work (commits bf9c940…final):**
+  - Ported Mark III `apps/desktop` (dropped unused Monaco dep), `tsc --noEmit` clean, `vite build` green.
+  - Windows launchers: `Run Jarvis III UI.bat` (production), `Run Jarvis III UI (Dev).bat` (hot-reload), `Launch Jarvis III UI (Silent).vbs`.
+  - **Fixed the blank-window bug chain** (user-reported + debugged):
+    1. `main.mjs` used `app.isPackaged` for dev detection — always false when running from `node_modules`, so production loaded the (dead) Vite URL → chrome-error blank. Dev is now opt-in via `JARVIS_DEV=1` (set by the Dev bat).
+    2. Vite emitted absolute asset paths → added `base: './'` + `vite-plugin-singlefile` (ES modules don't load over `file://` at all).
+    3. CSP `script-src` lacked `'unsafe-inline'` → the inlined module bundle was CSP-blocked → DOM stayed empty (matched user's empty-Elements devtools screenshot). Fixed CSP (also allows https/file connect & img for feeds/avatars).
+    4. Inlined module script carried `crossorigin` → treated as CORS request on `file://`; launcher strips it post-build (and a node one-liner patched the already-built dist).
+  - Overlap fixes: ChatOverlay now takes computed `contentInset` (sidebar 256px left / file panel 256px right) instead of hardcoded `ml-64`, z-ordered under side panels, chatHeight clamped 35–90vh.
+  - Tab icons real (💬⚡📰📈 with saved-settings migration), `jarvis-green` token added.
+  - News tab: real RSS/Atom reader via main-process fetch (user-manageable feeds, persisted, safe shell.openExternal links). Stocks tab: watchlist-first with honest em-dash placeholders until backend phase; custom tabs show an actionable empty state. Code tab explains how to open files.
+  - Electron IPC added: `fetch:text` (http/https only, 15s timeout), `openExternal`, `getSystemStats` (real CPU/RAM deltas — SystemStats widget now works), `getAppInfo`. Typed in `src/types/electron.ts`.
+  - Settings: live app version (via IPC), test-notification button; Webhooks/MCP/Notifications sections were already implemented in the port.
+  - Persistence: active tab, sidebar/chat-open state ride the settings blob; sessions list persisted with working rename/delete through new Sidebar props; `useWebSocket` takes `settings.wsUrl`.
+  - Final build verified in the real production launcher run (Electron processes alive, UI confirmed visible by user).
+- **Live-verified by user:** UI renders and looks good (2026-10-10).
 
 ## 6. Current Bugs / Known Issues
 
@@ -158,7 +172,8 @@ Ordered so UI is finished first (user's explicit preference), then backends, the
 
 ## 7. Lessons Learned
 
-- Analysis revealed the active workspace (`Jarvis Mark III - Revised`) is empty except `.freebuff/` — Mark III's codebase was cloned from its own git repo for analysis; nothing has been copied into the new workspace yet.
+- **Electron production blank-window trap (the big one this session):** `app.isPackaged` is not a Dev/Prod signal when running Electron from `node_modules` — it is always `false`, so any "if dev, load vite URL" branch silently ships to production. Use an explicit env flag (`JARVIS_DEV=1`). Related chain: ES module bundles don't execute over `file://` (needs inlining via vite-plugin-singlefile), inline scripts need CSP `'unsafe-inline'`, and the inlined `<script type="module" crossorigin>` freezes on `file://` CORS — the launcher strips the attribute post-build. A blank window + empty DevTools Elements tab means "no page ever loaded" (check the chrome-error:// URL in devtools) rather than "JS crashed".
+- Analysis revealed the active workspace (`Jarvis Mark III - Revised`) was empty except `.freebuff/` before this session; Mark III's codebase was ported by direct copy excluding node_modules/dist.
 - Hermes integration via its documented OpenAI-compatible HTTP API is the most stable contract; deeper in-process integration should be a deliberate, isolated decision (Hermes 0.19 vendored copy differs from current 0.21.x).
 - Odysseus is service-shaped, not library-shaped. Its AGPL license is fine for personal use; if the user redistribute Jarvis, this needs revisiting.
 - The Mark II Electron main process is a solid, working reference for tray + auto-start-on-boot on Windows; prefer porting it over writing new.
