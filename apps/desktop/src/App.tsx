@@ -165,6 +165,9 @@ export default function App() {
   const renderTabContent = () => {
     if (isSettingsOpen) return <SettingsPage settings={settings} onUpdate={updateSettings} onReset={resetSettings} />
 
+    // Chat tab: sphere is the page; chat UI lives in the floating overlay
+    if (activeTab === 'chat' && !openFile) return null
+
     // If a file is open, show the editor in the main content area
     if (openFile) {
       if (isCodeFile(openFile.name)) {
@@ -182,6 +185,7 @@ export default function App() {
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
       return pageWidgets && pageWidgets.length > 0 ? <WidgetPanel widgets={pageWidgets} /> : <StocksPage />
     }
+
     if (activeTab === 'code') {
       const pageWidgets = settings.pageLayouts[activeTab]?.widgets
       if (pageWidgets && pageWidgets.length > 0) return <WidgetPanel widgets={pageWidgets} />
@@ -218,7 +222,7 @@ export default function App() {
       <TitleBar status={status} onOpenSettings={openSettings} />
       <TabBar tabs={settings.tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex-1 relative min-h-0 overflow-hidden">
-        {activeTab === 'chat' && !openFile && (
+        {!isSettingsOpen && !openFile && (
           <SphereScene
             audioLevel={0}
             intensity={settings.sphereIntensity}
@@ -243,7 +247,9 @@ export default function App() {
           />
         )}
         {renderTabContent()}
-        <FileBrowser isOpen={fileBrowserOpen} onToggle={() => setFileBrowserOpen(p => !p)} projectPath={activeProjectPath} onProjectPathChange={activeSessionId ? (p) => setSessionProjectPath(activeSessionId, p) : undefined} onFileOpen={handleFileOpen} />
+        {(activeTab === 'code' || openFile) && (
+          <FileBrowser isOpen={fileBrowserOpen} onToggle={() => setFileBrowserOpen(p => !p)} projectPath={activeProjectPath} onProjectPathChange={activeSessionId ? (p) => setSessionProjectPath(activeSessionId, p) : undefined} onFileOpen={handleFileOpen} />
+        )}
         {/* Floating file-browser toggle button (top-right, avoids titlebar) */}
         <ChatOverlay
           isOpen={isChatOpen}
