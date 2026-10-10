@@ -154,14 +154,15 @@ Ordered so UI is finished first (user's explicit preference), then backends, the
     2. Vite emitted absolute asset paths → added `base: './'` + `vite-plugin-singlefile` (ES modules don't load over `file://` at all).
     3. CSP `script-src` lacked `'unsafe-inline'` → the inlined module bundle was CSP-blocked → DOM stayed empty (matched user's empty-Elements devtools screenshot). Fixed CSP (also allows https/file connect & img for feeds/avatars).
     4. Inlined module script carried `crossorigin` → treated as CORS request on `file://`; launcher strips it post-build (and a node one-liner patched the already-built dist).
-  - Overlap fixes: ChatOverlay now takes computed `contentInset` (sidebar 256px left / file panel 256px right) instead of hardcoded `ml-64`, z-ordered under side panels, chatHeight clamped 35–90vh.
+      - Overlap fixes: ChatOverlay now takes computed `contentInset` (sidebar 256px left / file panel 256px right) instead of hardcoded `ml-64`, z-ordered under side panels, chatHeight clamped 35–90vh.
+  - Launcher patch hardened: the post-build `crossorigin` strip is a quote-free Node one-liner (PowerShell quoting was fragile in cmd).
   - Tab icons real (💬⚡📰📈 with saved-settings migration), `jarvis-green` token added.
   - News tab: real RSS/Atom reader via main-process fetch (user-manageable feeds, persisted, safe shell.openExternal links). Stocks tab: watchlist-first with honest em-dash placeholders until backend phase; custom tabs show an actionable empty state. Code tab explains how to open files.
   - Electron IPC added: `fetch:text` (http/https only, 15s timeout), `openExternal`, `getSystemStats` (real CPU/RAM deltas — SystemStats widget now works), `getAppInfo`. Typed in `src/types/electron.ts`.
   - Settings: live app version (via IPC), test-notification button; Webhooks/MCP/Notifications sections were already implemented in the port.
   - Persistence: active tab, sidebar/chat-open state ride the settings blob; sessions list persisted with working rename/delete through new Sidebar props; `useWebSocket` takes `settings.wsUrl`.
   - Final build verified in the real production launcher run (Electron processes alive, UI confirmed visible by user).
-- **Live-verified by user:** UI renders and looks good (2026-10-10).
+- **Live-verified by user:** UI renders and looks good (2026-10-10). User-reported follow-up bugs fixed in the second build: file-browser toggle was visible on every tab (now Code-tab only, or when a file is open), and the Chat tab wrongly showed the custom-tab "Add widgets" empty state (now sphere-only; sphere also kept behind News/Stocks/custom pages for the starfield backdrop).
 
 ## 6. Current Bugs / Known Issues
 
