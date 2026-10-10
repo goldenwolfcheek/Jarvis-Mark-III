@@ -263,7 +263,9 @@ export default function App() {
           providerName={settings.provider}
           contentInset={{
             left: showSidebar && sidebarOpen ? 256 : 0,
-            right: fileBrowserOpen ? 256 : 0,
+            // File panel only exists on the Code tab — don't inset the chat
+            // on other tabs even if its open-state flag survived a tab switch.
+            right: activeTab === 'code' && fileBrowserOpen ? 256 : 0,
           }}
           chatHeight={settings.chatHeight}
           onModelChange={(m) => updateSettings({ model: m })}
