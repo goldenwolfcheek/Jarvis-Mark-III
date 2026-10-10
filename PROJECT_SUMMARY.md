@@ -162,7 +162,7 @@ Ordered so UI is finished first (user's explicit preference), then backends, the
   - Settings: live app version (via IPC), test-notification button; Webhooks/MCP/Notifications sections were already implemented in the port.
   - Persistence: active tab, sidebar/chat-open state ride the settings blob; sessions list persisted with working rename/delete through new Sidebar props; `useWebSocket` takes `settings.wsUrl`.
   - Final build verified in the real production launcher run (Electron processes alive, UI confirmed visible by user).
-- **Live-verified by user:** UI renders and looks good (2026-10-10). User-reported follow-up bugs fixed in the second build: file-browser toggle was visible on every tab (now Code-tab only, or when a file is open), and the Chat tab wrongly showed the custom-tab "Add widgets" empty state (now sphere-only; sphere also kept behind News/Stocks/custom pages for the starfield backdrop).
+- **Live-verified by user:** UI renders and looks good (2026-10-10). User-reported follow-up bugs fixed in the second build: file-browser toggle was visible on every tab (now Code-tab only), and the Chat tab wrongly showed the custom-tab "Add widgets" empty state (now sphere-only; sphere also kept behind News/Stocks/custom pages for the starfield backdrop). Third build: open-file editor is scoped to the Code tab — switching tabs leaves the file behind on Code (returning shows it still open) instead of pinning the editor over every tab; two residual leaks fixed in the same pass (Chat-with-openFile fallthrough to the empty state, and FileBrowser's stale `|| openFile` mount clause).
 
 ## 6. Current Bugs / Known Issues
 
