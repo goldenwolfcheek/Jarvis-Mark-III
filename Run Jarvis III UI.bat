@@ -54,8 +54,9 @@ if %NEED_BUILD%==1 (
         pause
         exit /b 1
     )
-    :: Inline module scripts must not carry crossorigin attr (file:// CORS freeze)
-    powershell -NoProfile -Command "$p='\"%~dp0apps\desktop\dist\index.html\"'; (Get-Content $p -Raw) -replace '<script type="module" crossorigin>','<script type="module">' | Set-Content $p -NoNewline"
+    :: Inline module scripts must not carry crossorigin attr (file:// CORS freeze).
+    :: Node one-liner instead of powershell: predictable quoting in cmd.
+    node -e "const f=require('fs');let s=f.readFileSync('dist/index.html','utf8');s=s.split('<script type=\\\"module\\\" crossorigin>').join('<script type=\\\"module\\\">');f.writeFileSync('dist/index.html',s);console.log('crossorigin attr stripped');"
 ) else (
     echo  [2/3] Renderer bundle up to date.
 )
