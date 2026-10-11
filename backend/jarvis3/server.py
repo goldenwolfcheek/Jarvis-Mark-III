@@ -18,7 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 
 from jarvis3.constants import HOST, PORT
 from jarvis3.state_db import get_state_db
@@ -55,6 +55,28 @@ def _startup():
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "jarvis3", "port": PORT}
+
+
+# ── Provider models (fetch from any OpenAI-compatible /models) ──
+@app.get("/api/models")
+async def list_models(base_url: str = "https://opencode.ai/zen/v1", api_key: str = ""):
+    import httpx
+    if not base_url:
+        raise HTTPException(status_code=400, detail="base_url required")
+    url = base_url.rstrip("/") + "/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(url, headers=headers)
+        if r.status_code == 401:
+            return {"ok": False, "error": "Auth failed (401) - check the API key"}
+        if r.status_code != 200:
+            return {"ok": False, "error": f"{r.status_code} from {url}"}
+        data = r.json()
+        models = [m.get("id") for m in data.get("data", []) if m.get("id")]
+        return {"ok": True, "models": sorted(models)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ── Sessions (UI contract) ──

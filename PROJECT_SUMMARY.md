@@ -212,6 +212,18 @@ The backend now exists as a working Python service (`backend/jarvis3/`, FastAPI 
 - **Not yet in backend (queued):** filesystem/terminal/web/research tools, subagent delegation, TTS, context compression, Odysseus-logic feature tools (docs/email/calendar/notes/tasks/research), OpenCode-style permissions model.
 - **Python 3.14 note:** venv at `backend/.venv` (built with `C:\Python314\python.exe`); `uvicorn[standard]` required for WS support — plain uvicorn 404s upgrades.
 
+## 5d. Provider UX + Launcher Round 3 (2026-10-10 late)
+
+- **Launchers broke again after the backend start-lines were added** — two overlapping causes, both fixed and proven:
+  1. The vbs had a VBScript compilation error (Line 63): quote-nesting from composing `.Run` inline. Now composed into a variable first. Also fixed bat `if/else if` chains into `if/goto` blocks (nested parens with inner quotes are fragile in cmd).
+  2. **`%~dp0` was resolving to `apps\desktop\` (not the project root) in the PS-driver context** — diagnosed by echo-markers in the bat. Backend dir resolution is now a copy-free fallback ladder (root → parent → desktop-parent → hardcoded), with `pushd`/`%CD%` normalization, then `if exist pythonw.exe` triggers a `cmd /c` wrapped `start` (bare `pythonw` silently died when piping). Retested twice: `[0/3] Starting backend...` + server up + app live, or `[0/3] Backend already running on 11711.` when warm.
+- **Provider system reworked (user feedback: typing model names from memory is bad):**
+  - New `GET /api/models?base_url=&api_key=` backend endpoint that queries any OpenAI-compatible `/models` list (tested: OpenRouter returns 240+ IDs sorted).
+  - Settings → Model & Provider now has curated presets (LM Studio `http://localhost:1234/v1`, Ollama local, OpenCode Zen, OpenRouter, OpenAI, Anthropic, Custom). Changing provider auto-fills Base URL and shows a provider-specific note (e.g. Zen free models may be app-exclusive; OpenRouter needs a key even for :free).
+  - A **"List models"** button fetches the provider's models through the backend and renders clickable chips — no more typing model IDs.
+- **Provider router now supports key-less local providers** (LM Studio on 1234, Ollama on 11434 — detected via base_url), and model-not-supported errors from the provider now append a hint to pick another model.
+- **User-reported findings recorded:** OpenCode Zen free models refused direct API use ("only in OpenCode desktop app"); OpenRouter `apodex-1.1-mini:free` rejected by the backend listed model `ModelError` (their free-tier models often lack tool support — pick a `:free` variant that actually supports tools, or use LM Studio which supports tool calling).
+
 ## 6. Current Bugs / Known Issues
 
 - None yet (no code written in this workspace). Bugs found in Mark III source worth pre-empting:

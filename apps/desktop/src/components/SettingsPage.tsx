@@ -112,8 +112,36 @@ function GeneralSection({ settings, onUpdate }: { settings: Settings; onUpdate: 
 }
 
 // ── Model & Provider ─────────────────────────────────────────────────────
+// Known provider presets — Base URL auto-fills when the provider changes.
+const PROVIDER_PRESETS: Record<string, { baseUrl: string; needsKey: boolean; note?: string }> = {
+  'lmstudio': { baseUrl: 'http://localhost:1234/v1', needsKey: false, note: 'Local. Start the server in LM Studio, no API key needed.' },
+  'ollama': { baseUrl: 'http://localhost:11434/v1', needsKey: false, note: 'Local Ollama with an OpenAI-compatible endpoint active.' },
+  'opencode-zen': { baseUrl: 'https://opencode.ai/zen/v1', needsKey: true, note: 'Free key at opencode.ai/auth. Note: some free models are app-exclusive and reject direct API calls.' },
+  'openrouter': { baseUrl: 'https://openrouter.ai/api/v1', needsKey: true, note: 'API key required even for :free models. Model IDs look like meta/model:free.' },
+  'openai': { baseUrl: 'https://api.openai.com/v1', needsKey: true },
+  'anthropic': { baseUrl: 'https://api.anthropic.com/v1', needsKey: true },
+  'custom': { baseUrl: '', needsKey: false },
+}
+
 function ModelSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const [newLabel, setNewLabel] = useState('')
+  const [models, setModels] = useState<string[]>([])
+  const [modelsState, setModelsState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [modelsError, setModelsError] = useState('')
+  const apiKey = settings.apiKey
+  const baseUrl = settings.baseUrl || PROVIDER_PRESETS[settings.provider]?.baseUrl || ''
+  const needsKey = PROVIDER_PRESETS[settings.provider]?.needsKey ?? false
+
+  const fetchModels = () => {
+    setModelsState('loading'); setModelsError('')
+    fetch(`${'http://127.0.0.1:11711'}/api/models?base_url=${encodeURIComponent(baseUrl)}&api_key=${encodeURIComponent(apiKey || '')}`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.ok) { setModels(res.models); setModelsState('idle') }
+        else { setModelsState('error'); setModelsError(res.error || 'Failed to list models') }
+      })
+      .catch(e => { setModelsState('error'); setModelsError(String(e)) })
+  }
 
   const saveProvider = () => {
     if (!settings.provider || !settings.model) return
@@ -134,15 +162,42 @@ function ModelSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p
 
   return (<div><SectionHeader title="Model & Provider" description="Configure which AI model to use — mirrors Hermes cli-config.yaml" />
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1">
-      <SettingRow label="Provider" description="auto = detect from credentials"><Select value={settings.provider} onChange={v => onUpdate({ provider: v })} options={[
-        { value: 'auto', label: 'Auto (detect from credentials)' }, { value: 'openrouter', label: 'OpenRouter' }, { value: 'nous', label: 'Nous Portal' },
-        { value: 'anthropic', label: 'Anthropic' }, { value: 'openai-codex', label: 'OpenAI Codex' }, { value: 'copilot', label: 'GitHub Copilot' },
-        { value: 'gemini', label: 'Google Gemini' }, { value: 'zai', label: 'z.ai / GLM' }, { value: 'kimi-coding', label: 'Kimi / Moonshot' },
-        { value: 'minimax', label: 'MiniMax' }, { value: 'huggingface', label: 'Hugging Face' }, { value: 'nvidia', label: 'NVIDIA NIM' },
-        { value: 'ollama-cloud', label: 'Ollama Cloud' }, { value: 'deepinfra', label: 'DeepInfra' }, { value: 'azure-foundry', label: 'Azure Foundry' },
-        { value: 'lmstudio', label: 'LM Studio (Local)' }, { value: 'custom', label: 'Custom (OpenAI-compatible)' },
+      <SettingRow label="Provider" description="Base URL and notes fill in automatically"><Select value={settings.provider} onChange={v => {
+        const preset = PROVIDER_PRESETS[v]
+        onUpdate({ provider: v, baseUrl: preset ? preset.baseUrl : settings.baseUrl })
+        setModels([]); setModelsState('idle')
+      }} options={[
+        { value: 'lmstudio', label: 'LM Studio (Local)' },
+        { value: 'ollama', label: 'Ollama (Local)' },
+        { value: 'opencode-zen', label: 'OpenCode Zen' },
+        { value: 'openrouter', label: 'OpenRouter' },
+        { value: 'openai', label: 'OpenAI' },
+        { value: 'anthropic', label: 'Anthropic' },
+        { value: 'custom', label: 'Custom (OpenAI-compatible)' },
       ]} /></SettingRow>
-      <SettingRow label="Model" description="Model identifier (e.g. anthropic/claude-opus-4.6)"><TextInput value={settings.model} onChange={v => onUpdate({ model: v })} placeholder="e.g. anthropic/claude-opus-4.6" /></SettingRow>
+      {PROVIDER_PRESETS[settings.provider]?.note && (
+        <p className="text-xs text-jarvis-muted/80 px-3 pb-1">{PROVIDER_PRESETS[settings.provider].note}</p>
+      )}
+      <SettingRow label="Base URL" description="Auto-filled per provider; override for self-hosted"><TextInput value={settings.baseUrl} onChange={v => onUpdate({ baseUrl: v })} placeholder="http://localhost:1234/v1" className="w-full font-mono" /></SettingRow>
+      <SettingRow label="Model" description="Type an ID, or list models from the provider">
+        <div className="flex items-center gap-2">
+          <TextInput value={settings.model} onChange={v => onUpdate({ model: v })} placeholder="e.g. big-pickle or qwen2.5-7b-instruct" className="flex-1 min-w-0" />
+          <button onClick={fetchModels} disabled={modelsState === 'loading' || !baseUrl} className="px-2.5 py-1.5 text-xs whitespace-nowrap bg-jarvis-blue/20 text-jarvis-cyan rounded-lg hover:bg-jarvis-blue/30 border border-jarvis-blue/20 disabled:opacity-40">{modelsState === 'loading' ? '…' : 'List models'}</button>
+        </div>
+      </SettingRow>
+      {models.length > 0 && (
+        <SettingRow label="Pick a model" description={`${models.length} available`}>
+          <div className="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
+            {models.map(m => (
+              <button key={m} onClick={() => onUpdate({ model: m })}
+                className={`px-2 py-1 rounded-md text-xs font-mono transition-colors border ${
+                  settings.model === m ? 'bg-jarvis-cyan/20 border-jarvis-cyan/50 text-jarvis-cyan' : 'bg-jarvis-surface/60 border-jarvis-border/50 text-jarvis-muted hover:border-jarvis-cyan/30 hover:text-jarvis-text'}`}
+              >{m}</button>
+            ))}
+          </div>
+        </SettingRow>
+      )}
+      {modelsState === 'error' && (<p className="text-xs text-jarvis-error/90 px-3 pb-1">{modelsError}</p>)}
       <SettingRow label="API Key" description="Leave empty to use .env / system env var"><TextInput type="password" value={settings.apiKey} onChange={v => onUpdate({ apiKey: v })} placeholder="Optional" /></SettingRow>
       <SettingRow label="Base URL" description="Override API endpoint (for custom/self-hosted)"><TextInput value={settings.baseUrl} onChange={v => onUpdate({ baseUrl: v })} placeholder="https://openrouter.ai/api/v1" className="w-full font-mono" /></SettingRow>
       <SettingRow label="Context Length" description="Total context window (input + output tokens)"><TextInput value={settings.contextLength?.toString() ?? ''} onChange={v => onUpdate({ contextLength: parseInt(v) || undefined })} placeholder="e.g. 200000" /></SettingRow>

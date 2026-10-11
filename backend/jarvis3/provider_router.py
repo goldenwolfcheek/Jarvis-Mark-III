@@ -56,6 +56,12 @@ def resolve_provider(keys_from_ui: Optional[dict] = None) -> dict:
     return profile
 
 
+def requires_api_key(base_url: str) -> bool:
+    """Local servers (LM Studio, Ollama) work with no key at all."""
+    u = (base_url or "").lower()
+    return not ("localhost" in u or "127.0.0.1" in u or ":1234" in u or ":11434" in u)
+
+
 class ProviderError(Exception):
     pass
 
@@ -80,13 +86,16 @@ async def stream_chat(
       {"type": "done", "finish_reason": str}
     Raises ProviderError on auth/rate-limit/connection errors.
     """
-    if not api_key:
+    if not api_key and requires_api_key(base_url):
         raise ProviderError(
-            "No API key available. Add a provider in Settings (or set OPENCODE_API_KEY). "
-            "Get a free key at https://opencode.ai/auth"
+            "No API key available for this provider. Add it in Settings → Chat Providers "
+            "(OpenCode Zen free keys: https://opencode.ai/auth) or use a local provider "
+            "like LM Studio (http://localhost:1234/v1) which needs no key."
         )
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     url = base_url.rstrip("/") + "/chat/completions"
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body: dict[str, Any] = {
         "model": model,
         "messages": messages,
@@ -113,7 +122,11 @@ async def stream_chat(
                     raise ProviderError("Rate limited (429) by the provider — try again shortly.")
                 if resp.status_code != 200:
                     detail = (await resp.aread()).decode(errors="replace")[:300]
-                    raise ProviderError(f"Provider error {resp.status_code}: {detail}")
+                    extra = ""
+                    if "not supported" in detail.lower() and "model" in detail.lower():
+                        extra = (" — this model is not available on this provider/endpoint. "
+                                 "Check the model list for this provider or pick another model.")
+                    raise ProviderError(f"Provider error {resp.status_code}: {detail}{extra}")
 
                 async for line in resp.aiter_lines():
                     if not line.startswith("data:"):
