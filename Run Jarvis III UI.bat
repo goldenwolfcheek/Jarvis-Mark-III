@@ -4,8 +4,9 @@ color 0B
 
 :: ============================================================
 ::  JARVIS MARK III (Revised) - UI build + Electron launch
-::  Simple and robust: always rebuild (vite is ~3s), always
-::  patch, then launch Electron detached.
+::  Console-visible variant. Always rebuilds (~3s), launches
+::  Electron via plain cmd /c (the pattern that works on this
+::  machine). All failures pause so nothing disappears silently.
 :: ============================================================
 
 set "DESKTOP=%~dp0apps\desktop"
@@ -39,7 +40,7 @@ if not exist "node_modules\" (
     echo  [1/3] Dependencies installed.
 )
 
-:: Always rebuild (fast) — removes the whole staleness-detection bug class
+:: Always rebuild (fast) - removes the whole staleness-detection bug class
 echo  [2/3] Building renderer...
 call npm run build
 if %ERRORLEVEL% NEQ 0 (
@@ -57,9 +58,11 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b 1
 )
 
-:: Launch Electron detached, then let the console close.
-:: start /b inherits the console and means Electron dies with the bat in
-:: some launch contexts; plain `start` gives Electron its own detached line.
+:: Launch Electron in the foreground via cmd /c - the pattern that works
+:: without start wrapping. This bat stays open until Jarvis closes.
 echo  [3/3] Launching Jarvis...
-start "Jarvis" /d "%DESKTOP%" "" cmd /c "npx electron ."
+cmd /c "npx electron ."
+echo.
+echo  Jarvis closed.
+pause
 exit /b 0

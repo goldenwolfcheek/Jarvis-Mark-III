@@ -32,12 +32,15 @@ const DEFAULT_SETTINGS = {
   sttProvider: 'local',
 
   // Theme / sphere
+  sphereStyle: 'classic' as 'classic' | 'fluid' | 'geodesic' | 'swarm',
   sphereIntensity: 1.0,
   particleCount: 1500,
   glowColor: '#2763d1',
   sphereBgColor: '#1e4a8a',
   sphereRotationSpeed: 1.0,
   spherePulseSpeed: 1.0,
+  showStarfield: true,
+  showRings: true,
   uiScale: 1.0,
 
   // Widget card opacity (0.5–1.0, default 0.95)

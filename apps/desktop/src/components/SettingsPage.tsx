@@ -344,15 +344,43 @@ function ColorInput({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 function AppearanceSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
+  const SPHERE_STYLES = [
+    { id: 'classic', label: 'Classic', desc: 'Wireframe lines, HUD rings, starfield' },
+    { id: 'fluid', label: 'Fluid', desc: 'Organic blob, warm gradient dots, no rings' },
+    { id: 'geodesic', label: 'Geodesic', desc: 'Dense structured dome, brighter lines' },
+    { id: 'swarm', label: 'Swarm', desc: 'Orbiting comet particles around the core' },
+  ] as const
   return (<div><SectionHeader title="Appearance" description="Customize the look and feel" />
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
       <div className="text-sm font-medium text-jarvis-text">Sphere</div>
+      <SettingRow label="Style" description="Overall look of the animated sphere">
+        <div className="flex flex-wrap gap-1.5">
+          {SPHERE_STYLES.map(s => (
+            <button key={s.id} title={s.desc}
+              onClick={() => onUpdate({ sphereStyle: s.id })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                (settings.sphereStyle || 'classic') === s.id
+                  ? 'bg-jarvis-cyan/20 border-jarvis-cyan/50 text-jarvis-cyan'
+                  : 'bg-jarvis-surface/60 border-jarvis-border/50 text-jarvis-muted hover:text-jarvis-text hover:border-jarvis-cyan/30'}`}
+            >{s.label}</button>
+          ))}
+        </div>
+      </SettingRow>
       <SettingRow label="Sphere Intensity" description="Breathing amplitude"><Slider value={settings.sphereIntensity} onChange={v => onUpdate({ sphereIntensity: v })} min={0} max={2} step={0.1} unit="x" /></SettingRow>
       <SettingRow label="Particle Count"><Slider value={settings.particleCount} onChange={v => onUpdate({ particleCount: Math.round(v / 100) * 100 })} min={500} max={10000} step={100} /></SettingRow>
       <SettingRow label="Rotation Speed" description="How fast the sphere spins"><Slider value={settings.sphereRotationSpeed} onChange={v => onUpdate({ sphereRotationSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
       <SettingRow label="Pulse Speed" description="Breathing rhythm"><Slider value={settings.spherePulseSpeed} onChange={v => onUpdate({ spherePulseSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
-      <SettingRow label="Sphere Color"><ColorInput value={settings.glowColor} onChange={v => onUpdate({ glowColor: v })} /></SettingRow>
-      <SettingRow label="Starfield Color" description="Background sphere"><ColorInput value={settings.sphereBgColor} onChange={v => onUpdate({ sphereBgColor: v })} /></SettingRow>
+      <SettingRow label="Sphere Color" description="Ignored in Fluid style (fixed warm gradient)"><ColorInput value={settings.glowColor} onChange={v => onUpdate({ glowColor: v })} /></SettingRow>
+    </div>
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">Background</div>
+      <SettingRow label="Starfield" description="Distant particle field behind the sphere">
+        <Toggle value={settings.showStarfield !== false} onChange={v => onUpdate({ showStarfield: v })} />
+      </SettingRow>
+      <SettingRow label="Starfield Color"><ColorInput value={settings.sphereBgColor} onChange={v => onUpdate({ sphereBgColor: v })} /></SettingRow>
+      <SettingRow label="HUD Rings" description="Orbiting rings (Classic & Geodesic styles only)">
+        <Toggle value={settings.showRings !== false} onChange={v => onUpdate({ showRings: v })} />
+      </SettingRow>
     </div>
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
       <div className="text-sm font-medium text-jarvis-text">Widgets & Cards</div>

@@ -4,13 +4,18 @@ import * as THREE from 'three'
 const CONFIG = {
   particleCount: 1500,
   sphereRadius: 2.0,
-  rotSpeed: 0.08,       // multiplied by rotationSpeed setting
-  pulseSpeed: 0.8,      // multiplied by pulseSpeed setting
+  rotSpeed: 0.08,
+  pulseSpeed: 0.8,
   starCount: 5000,
   starFieldRadius: 50,
   connectionDistance: 1.0,
   maxConnections: 4,
+  // Fluid blob: how far the silhouette may distort from a perfect sphere
+  blobAmp: 0.22,
+  blobFreq: 0.7,
 }
+
+export type SphereStyle = 'classic' | 'fluid' | 'geodesic' | 'swarm'
 
 interface SphereSceneProps {
   audioLevel?: number
@@ -23,11 +28,25 @@ interface SphereSceneProps {
   rotationSpeed?: number
   /** Breathing pulse speed multiplier, 0-3 (default 1) */
   pulseSpeedMult?: number
+  /** Visual style of the animated sphere */
+  style?: SphereStyle
+  /** Show the background starfield */
+  showStarfield?: boolean
+  /** Show the HUD rings */
+  showRings?: boolean
 }
 
 function normalizeHex(hex: string, fallback: number): number {
   const c = hex?.replace('#', '')
   return /^([0-9a-f]{6})$/i.test(c) ? parseInt(c, 16) : fallback
+}
+
+/** Deterministic pseudo-random in [0,1) from an integer seed — stable blob shape */
+function hash01(seed: number): number {
+  let t = seed + 0x6d2b79f5
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
 }
 
 export default function SphereScene({
@@ -38,6 +57,9 @@ export default function SphereScene({
   bgColor = '#1e4a8a',
   rotationSpeed = 1,
   pulseSpeedMult = 1,
+  style = 'classic',
+  showStarfield = true,
+  showRings = true,
 }: SphereSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const audioLevelRef = useRef(audioLevel)
@@ -51,12 +73,18 @@ export default function SphereScene({
   const bgColorRef = useRef(bgColor)
   const rotationSpeedRef = useRef(rotationSpeed)
   const pulseSpeedMultRef = useRef(pulseSpeedMult)
+  const styleRef = useRef<SphereStyle>(style)
+  const showStarfieldRef = useRef(showStarfield)
+  const showRingsRef = useRef(showRings)
   useEffect(() => { intensityRef.current = intensity }, [intensity])
   useEffect(() => { particleCountRef.current = particleCount }, [particleCount])
   useEffect(() => { glowColorRef.current = glowColor }, [glowColor])
   useEffect(() => { bgColorRef.current = bgColor }, [bgColor])
   useEffect(() => { rotationSpeedRef.current = rotationSpeed }, [rotationSpeed])
   useEffect(() => { pulseSpeedMultRef.current = pulseSpeedMult }, [pulseSpeedMult])
+  useEffect(() => { styleRef.current = style }, [style])
+  useEffect(() => { showStarfieldRef.current = showStarfield }, [showStarfield])
+  useEffect(() => { showRingsRef.current = showRings }, [showRings])
 
   useEffect(() => {
     const container = containerRef.current
@@ -84,7 +112,7 @@ export default function SphereScene({
     renderer.setClearColor(0x000000, 0)
     container.appendChild(renderer.domElement)
 
-    // Background sphere
+    // ── Background starfield (toggleable) ──
     function createBackgroundSphere() {
       const geo = new THREE.BufferGeometry()
       const positions = new Float32Array(CONFIG.starCount * 3)
@@ -102,12 +130,13 @@ export default function SphereScene({
         blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
       })
       const mesh = new THREE.Points(geo, mat)
+      mesh.visible = showStarfieldRef.current
       scene.add(mesh)
       return mesh
     }
 
-    // Center sphere
-    function createSphere(count: number, radius: number, size: number) {
+    // ── Shared sphere particle build (used by classic + geodesic) ──
+    function createSphere(count: number, radius: number, size: number, mc: number) {
       const geo = new THREE.BufferGeometry()
       const positions = new Float32Array(count * 3)
       const directions = new Float32Array(count * 3)
@@ -122,16 +151,36 @@ export default function SphereScene({
         positions[i * 3] = x * radius; positions[i * 3 + 1] = y * radius; positions[i * 3 + 2] = z * radius
       }
       geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      // Per-point color attribute so Fluid gets its warm gradient
+      const colors = new Float32Array(count * 3)
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
       const mat = new THREE.PointsMaterial({
-        color: normalizeHex(glowColorRef.current, 0x2763d1), size, transparent: true, opacity: 0.85,
+        color: mc, size, transparent: true, opacity: 0.85,
         blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+        vertexColors: true,
       })
+      // When vertexColors is on, color attribute multiplies `mat.color`.
+      // Classic/Geodesic keep uniform white in the attribute so `mc` shows as-is;
+      // Fluid overwrites the attribute with a gradient and uses white base.
+      for (let i = 0; i < count; i++) { colors[i * 3] = 1; colors[i * 3 + 1] = 1; colors[i * 3 + 2] = 1 }
       const mesh = new THREE.Points(geo, mat)
       scene.add(mesh)
-      return { mesh, geo, mat, directions }
+      return { mesh, geo, mat, directions, colors }
     }
 
-    // Connections
+    // ── Fluid blob: surface distortion field (stable, deterministic) ──
+    // Displaces each direction by a sum of a few low-frequency spherical harmonics-ish
+    // waves, giving the organic irregular silhouette from the reference video.
+    function blobRadius(dir: Float32Array, i3: number, time: number, seedPhase: number): number {
+      const x = dir[i3], y = dir[i3 + 1], z = dir[i3 + 2]
+      let d = 0
+      d += Math.sin(x * CONFIG.blobFreq * 2.1 + time * 0.35 + seedPhase) * 0.5
+      d += Math.sin((y + x) * CONFIG.blobFreq * 1.7 - time * 0.28 + seedPhase * 1.3) * 0.3
+      d += Math.sin((z - y) * CONFIG.blobFreq * 2.4 + time * 0.22 + seedPhase * 0.7) * 0.2
+      return 1 + CONFIG.blobAmp * d
+    }
+
+    // ── Neighbors for wireframe connections (classic + geodesic) ──
     function computeNeighbors(directions: Float32Array, count: number, angleThreshold: number, maxPer: number) {
       const thresholdSq = angleThreshold * angleThreshold
       const pairs: number[] = []
@@ -176,32 +225,56 @@ export default function SphereScene({
       return lines
     }
 
-    function updateLinePositions(lines: THREE.LineSegments, currentRadius: number) {
+    function updateLinePositions(lines: THREE.LineSegments, radiusFn: (dir: Float32Array, i3: number) => number) {
       const { pairs, directions } = lines.userData
       const posAttr = lines.geometry.attributes.position as THREE.BufferAttribute
       const array = posAttr.array as Float32Array
       const numLines = pairs.length / 2
       for (let k = 0; k < numLines; k++) {
         const i = pairs[k * 2], j = pairs[k * 2 + 1], off = k * 6
-        array[off] = directions[i * 3] * currentRadius
-        array[off + 1] = directions[i * 3 + 1] * currentRadius
-        array[off + 2] = directions[i * 3 + 2] * currentRadius
-        array[off + 3] = directions[j * 3] * currentRadius
-        array[off + 4] = directions[j * 3 + 1] * currentRadius
-        array[off + 5] = directions[j * 3 + 2] * currentRadius
+        const ri = radiusFn(directions, i * 3)
+        const rj = radiusFn(directions, j * 3)
+        array[off] = directions[i * 3] * ri
+        array[off + 1] = directions[i * 3 + 1] * ri
+        array[off + 2] = directions[i * 3 + 2] * ri
+        array[off + 3] = directions[j * 3] * rj
+        array[off + 4] = directions[j * 3 + 1] * rj
+        array[off + 5] = directions[j * 3 + 2] * rj
       }
       posAttr.needsUpdate = true
     }
 
-    // Create objects
+    // ── Create objects ──
+    const requested = styleRef.current
     const count = Math.max(100, Math.min(10000, particleCountRef.current))
     const baseSphereColor = normalizeHex(glowColorRef.current, 0x2763d1)
     const bgSphere = createBackgroundSphere()
-    const sphere = createSphere(count, CONFIG.sphereRadius, 0.05)
-    const pairs = computeNeighbors(sphere.directions, count, CONFIG.connectionDistance / CONFIG.sphereRadius, CONFIG.maxConnections)
-    const lines = buildLineSegments(pairs, sphere.directions, CONFIG.sphereRadius, baseSphereColor, 0.15)
+
+    const sphere = createSphere(count, CONFIG.sphereRadius, 0.05, requested === 'fluid' ? 0xffffff : baseSphereColor)
+    // Fluid uses a gradient attribute instead of a uniform color
+    if (requested === 'fluid') {
+      const colors = sphere.colors
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3
+        // Vertical gradient: warm orange (top) → hot magenta/pink (edge/bottom)
+        const up = (sphere.directions[i3 + 1] + 1) / 2 // 0 bottom, 1 top
+        // Orange #ff8840 → magenta #ff2d90
+        colors[i3] = up
+        colors[i3 + 1] = 0.15 + up * 0.42
+        colors[i3 + 2] = 0.10 + up * 0.24
+      }
+      ;(sphere.geo.attributes.color as THREE.BufferAttribute).needsUpdate = true
+    }
+
+    const pairs = requested === 'fluid' || requested === 'swarm'
+      ? new Uint16Array(0)
+      : computeNeighbors(sphere.directions, count, CONFIG.connectionDistance / CONFIG.sphereRadius, CONFIG.maxConnections)
+    // Geodesic uses stronger, denser lines; classic keeps the existing look
+    const lineOpacity = requested === 'geodesic' ? 0.35 : 0.15
+    const lines = buildLineSegments(pairs, sphere.directions, CONFIG.sphereRadius, baseSphereColor, lineOpacity)
     scene.add(lines)
-    // HUD Rings
+
+    // ── Rings (toggleable, classic + geodesic only) ──
     function createRing(radius: number, yScale: number, zScale: number, yOffset: number, color: number, opacity: number) {
       const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending })
       const segments = 80
@@ -224,8 +297,33 @@ export default function SphereScene({
     const ring2 = createRing(CONFIG.sphereRadius + 0.5, 0.3, 0.7, 0, baseSphereColor, 0.10)
     const ring3 = createRing(CONFIG.sphereRadius + 0.8, 0, 1, 0, baseSphereColor, 0.08)
     const ring4 = createRing(CONFIG.sphereRadius + 1.1, 0.3, 0.7, 0, baseSphereColor, 0.06)
+    const rings = [ring1, ring2, ring3, ring4]
 
-    // Resize
+    // ── Swarm: second population orbiting on elliptical paths ──
+    const swarmCount = 240
+    const swarmSeeds: { a: number; b: number; r: number; speed: number; phase: number; tilt: number }[] = []
+    for (let i = 0; i < swarmCount; i++) {
+      swarmSeeds.push({
+        a: hash01(i * 7 + 1) * Math.PI,          // orbital inclination
+        b: hash01(i * 13 + 5) * Math.PI * 2,     // node angle
+        r: 2.4 + hash01(i * 29 + 11) * 2.2,      // orbit radius
+        speed: 0.05 + hash01(i * 31 + 3) * 0.18, // angular speed
+        phase: hash01(i * 17 + 9) * Math.PI * 2,
+        tilt: hash01(i * 23 + 2) * 0.6 - 0.3,
+      })
+    }
+    const swarmGeo = new THREE.BufferGeometry()
+    swarmGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(swarmCount * 3), 3))
+    swarmGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(swarmCount * 3), 3))
+    const swarmMat = new THREE.PointsMaterial({
+      size: 0.07, transparent: true, opacity: 0.9,
+      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true, vertexColors: true,
+    })
+    const swarm = new THREE.Points(swarmGeo, swarmMat)
+    swarm.visible = requested === 'swarm'
+    scene.add(swarm)
+
+    // ── Resize ──
     function onResize() {
       if (!container) return
       const w = container.clientWidth, h = container.clientHeight
@@ -235,31 +333,62 @@ export default function SphereScene({
     }
     window.addEventListener('resize', onResize)
 
-    // Live material color updates when settings change
+    // ── Style switching at runtime ──
+    let lastStyle = styleRef.current
+    function applyStyle(s: SphereStyle) {
+      lastStyle = s
+      const hasLines = s === 'classic' || s === 'geodesic'
+      const hasRings = showRingsRef.current && (s === 'classic' || s === 'geodesic')
+      const hasSwarm = s === 'swarm'
+      lines.visible = hasLines && pairs.length > 0
+      rings.forEach(r => { r.visible = hasRings })
+      swarm.visible = hasSwarm
+      sphere.mesh.visible = s !== 'swarm' // swarm shows comets + core particles
+      if (s === 'geodesic') {
+        sphere.mat.size = 0.035
+      } else if (s === 'fluid') {
+        sphere.mat.size = 0.038 // dense small dots like the reference
+      } else {
+        sphere.mat.size = 0.05
+      }
+      // Color behavior: fluid's gradient is baked in vertex colors; white base color
+      // must not tint it, so pin base color white and ignore user color there.
+      const g = s === 'fluid' ? 0xffffff : normalizeHex(glowColorRef.current, 0x2763d1)
+      sphere.mat.color.setHex(s === 'fluid' ? 0xffffff : g)
+      ;(lines.material as THREE.LineBasicMaterial).color.setHex(g)
+      rings.forEach(r => (r.material as THREE.LineBasicMaterial).color.setHex(g))
+    }
+
+    // ── Live material color updates when settings change ──
     let lastGlow = glowColorRef.current
     let lastBg = bgColorRef.current
     function applyColors() {
       const g = normalizeHex(glowColorRef.current, 0x2763d1)
       const b = normalizeHex(bgColorRef.current, 0x1e4a8a)
-      sphere.mat.color.setHex(g)
+      if (lastStyle !== 'fluid') sphere.mat.color.setHex(g)
       ;(lines.material as THREE.LineBasicMaterial).color.setHex(g)
-      ;(ring1.material as THREE.LineBasicMaterial).color.setHex(g)
-      ;(ring2.material as THREE.LineBasicMaterial).color.setHex(g)
-      ;(ring3.material as THREE.LineBasicMaterial).color.setHex(g)
-      ;(ring4.material as THREE.LineBasicMaterial).color.setHex(g)
+      rings.forEach(r => (r.material as THREE.LineBasicMaterial).color.setHex(g))
       ;(bgSphere.material as THREE.PointsMaterial).color.setHex(b)
+      ;(swarmMat as THREE.PointsMaterial).color.setHex(0xffffff) // swarm tint stays gradient-driven
     }
     applyColors()
+    applyStyle(lastStyle)
 
-    // Animation
+    // ── Animation ──
     let animId: number
     function animate() {
       animId = requestAnimationFrame(animate)
+      // Live refs
       if (glowColorRef.current !== lastGlow || bgColorRef.current !== lastBg) {
         lastGlow = glowColorRef.current
         lastBg = bgColorRef.current
         applyColors()
       }
+      if (styleRef.current !== lastStyle) applyStyle(styleRef.current)
+      bgSphere.visible = showStarfieldRef.current
+      const wantRings = showRingsRef.current && (lastStyle === 'classic' || lastStyle === 'geodesic')
+      rings.forEach(r => { r.visible = wantRings })
+
       const time = Date.now() * 0.001
       smoothAudioRef.current += (audioLevelRef.current - smoothAudioRef.current) * 0.10
       const sLvl = smoothAudioRef.current
@@ -267,34 +396,92 @@ export default function SphereScene({
       const rotMult = rotationSpeedRef.current
       const pulseMult = pulseSpeedMultRef.current
       const audioBoost = 1 + sLvl * 2.0
-      const scale = 1 + 0.06 * intens * Math.sin(time * CONFIG.pulseSpeed * pulseMult) + sLvl * 0.15
-      const radius = CONFIG.sphereRadius * scale
+      const pulsePhase = time * CONFIG.pulseSpeed * pulseMult
+      const scale = 1 + 0.06 * intens * Math.sin(pulsePhase) + sLvl * 0.15
+      const baseRadius = CONFIG.sphereRadius * scale
 
-      sphere.mesh.rotation.y += CONFIG.rotSpeed * 0.003 * rotMult * audioBoost * intens
-      lines.rotation.y += CONFIG.rotSpeed * 0.003 * rotMult * audioBoost * intens
+      const isFluid = lastStyle === 'fluid'
+      const isSwarm = lastStyle === 'swarm'
 
-      // Update particle positions
+      // Rotation
+      const rotStep = CONFIG.rotSpeed * 0.003 * rotMult * audioBoost * intens
+      if (!isSwarm) sphere.mesh.rotation.y += rotStep
+      lines.rotation.y += rotStep
+
+      // Particle positions
       const pos = sphere.mesh.geometry.attributes.position as THREE.BufferAttribute
       const dir = sphere.directions
       const arr = pos.array as Float32Array
-      for (let i = 0; i < pos.count; i++) {
-        const i3 = i * 3
-        arr[i3] = dir[i3] * radius
-        arr[i3 + 1] = dir[i3 + 1] * radius
-        arr[i3 + 2] = dir[i3 + 2] * radius
+      const n = pos.count
+      if (isFluid) {
+        for (let i = 0; i < n; i++) {
+          const i3 = i * 3
+          const r = CONFIG.sphereRadius * blobRadius(dir, i3, time, 0) * scale
+          arr[i3] = dir[i3] * r
+          arr[i3 + 1] = dir[i3 + 1] * r
+          arr[i3 + 2] = dir[i3 + 2] * r
+        }
+      } else {
+        for (let i = 0; i < n; i++) {
+          const i3 = i * 3
+          arr[i3] = dir[i3] * baseRadius
+          arr[i3 + 1] = dir[i3 + 1] * baseRadius
+          arr[i3 + 2] = dir[i3 + 2] * baseRadius
+        }
       }
       pos.needsUpdate = true
 
-      updateLinePositions(lines, radius)
-      lines.material.opacity = 0.08 + sLvl * 0.2 + 0.02 * Math.sin(time * 0.4 * pulseMult)
-      sphere.mat.size = 0.05 * (1 + sLvl * 1.5)
+      // Line opacities and endpoints
+      const radiusFn = isFluid
+        ? (d: Float32Array, i3: number) => CONFIG.sphereRadius * blobRadius(d, i3, time, 0) * scale
+        : () => baseRadius
+      if (lines.visible) updateLinePositions(lines, radiusFn)
+      ;(lines.material as THREE.LineBasicMaterial).opacity = lines.userData.baseOpacity * (0.5 + 0.5 * Math.min(1, 0.35 + sLvl)) + 0.02 * Math.sin(time * 0.4 * pulseMult)
 
-      ring1.rotation.y += 0.003 * rotMult * audioBoost
-      ring2.rotation.y += 0.0025 * rotMult * audioBoost
-      ring2.rotation.x += 0.001 * rotMult * audioBoost
-      ring3.rotation.y += 0.002 * rotMult * audioBoost
-      ring4.rotation.y += 0.0015 * rotMult * audioBoost
-      ring4.rotation.x += 0.0008 * rotMult * audioBoost
+      if (isFluid) {
+        // Breathing size pulse + audio swell for the blob dots
+        sphere.mat.size = 0.038 * (1 + 0.25 * Math.sin(pulsePhase) + sLvl * 1.5)
+      } else {
+        sphere.mat.size = 0.05 * (1 + sLvl * 1.5)
+      }
+
+      // Swarm comets
+      if (isSwarm) {
+        const sp = swarm.geometry.attributes.position as THREE.BufferAttribute
+        const sc = swarm.geometry.attributes.color as THREE.BufferAttribute
+        const spa = sp.array as Float32Array
+        const sca = sc.array as Float32Array
+        for (let i = 0; i < swarmCount; i++) {
+          const s = swarmSeeds[i]
+          const ang = s.phase + time * s.speed * (0.5 + rotMult * 0.5)
+          const wobble = Math.sin(time * 1.3 + s.phase * 3) * 0.15
+          const r = s.r + wobble
+          // tilted orbital plane
+          const cx = Math.cos(ang) * r
+          const cz = Math.sin(ang) * r
+          const cy = Math.sin(ang * 2 + s.a) * r * 0.25 * (1 + s.tilt)
+          // rotate around Y by node angle b
+          const x = cx * Math.cos(s.b) - cz * Math.sin(s.b)
+          const z = cx * Math.sin(s.b) + cz * Math.cos(s.b)
+          spa[i * 3] = x; spa[i * 3 + 1] = cy; spa[i * 3 + 2] = z
+          // warm gradient like fluid
+          const up = (cy / (2.5) + 1) / 2
+          sca[i * 3] = up; sca[i * 3 + 1] = 0.15 + up * 0.42; sca[i * 3 + 2] = 0.10 + up * 0.24
+        }
+        sp.needsUpdate = true
+        sc.needsUpdate = true
+        swarmMat.size = 0.07 * (1 + sLvl * 1.2)
+      }
+
+      // Rings spin
+      if (wantRings) {
+        ring1.rotation.y += 0.003 * rotMult * audioBoost
+        ring2.rotation.y += 0.0025 * rotMult * audioBoost
+        ring2.rotation.x += 0.001 * rotMult * audioBoost
+        ring3.rotation.y += 0.002 * rotMult * audioBoost
+        ring4.rotation.y += 0.0015 * rotMult * audioBoost
+        ring4.rotation.x += 0.0008 * rotMult * audioBoost
+      }
 
       bgSphere.rotation.y += 0.0002 * rotMult
       bgSphere.rotation.x += 0.0001 * rotMult
@@ -333,4 +520,3 @@ export default function SphereScene({
 
   return <div ref={containerRef} className="fixed inset-0 z-0" style={{ pointerEvents: 'none' }} />
 }
-

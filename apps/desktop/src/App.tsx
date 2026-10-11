@@ -233,6 +233,9 @@ export default function App() {
             bgColor={settings.sphereBgColor}
             rotationSpeed={settings.sphereRotationSpeed}
             pulseSpeedMult={settings.spherePulseSpeed}
+            style={settings.sphereStyle}
+            showStarfield={settings.showStarfield !== false}
+            showRings={settings.showRings !== false}
           />
         )}
         {/* Sidebar — toggle only on chat tab, not settings */}
