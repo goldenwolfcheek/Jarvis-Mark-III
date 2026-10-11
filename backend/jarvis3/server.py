@@ -69,6 +69,9 @@ async def list_models(base_url: str = "https://opencode.ai/zen/v1", api_key: str
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(url, headers=headers)
         if r.status_code == 401:
+            body = r.text[:300].lower()
+            if "lm studio" in body or "lm_api_token" in body or "token is required" in body:
+                return {"ok": False, "error": "LM Studio server has authentication enabled. Paste your LM Studio API token in Settings (or turn auth off in LM Studio's server settings).}"}
             return {"ok": False, "error": "Auth failed (401) - check the API key"}
         if r.status_code != 200:
             return {"ok": False, "error": f"{r.status_code} from {url}"}
