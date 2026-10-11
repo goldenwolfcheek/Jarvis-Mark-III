@@ -146,7 +146,15 @@ export default function App() {
 
   const handleSendMessage = useCallback((content: string) => {
     setMessages(prev => [...prev, { id: nextMsgId(), role: 'user', content, timestamp: Date.now() }])
-    const saved = settings.savedProviders.find(p => p.provider === settings.provider && p.apiKey)
+    const saved = settings.savedProviders.find(p => p.provider === settings.provider)
+    const presetUrls: Record<string, string> = {
+      lmstudio: 'http://localhost:1234/v1',
+      ollama: 'http://localhost:11434/v1',
+      'opencode-zen': 'https://opencode.ai/zen/v1',
+      openrouter: 'https://openrouter.ai/api/v1',
+      openai: 'https://api.openai.com/v1',
+      anthropic: 'https://api.anthropic.com/v1',
+    }
     sendMessage({
       type: 'message',
       content,
@@ -154,8 +162,8 @@ export default function App() {
       personality: settings.personality,
       provider: saved?.provider || settings.provider,
       model: saved?.model || settings.model,
-      api_key: saved?.apiKey,
-      base_url: 'https://opencode.ai/zen/v1',
+      api_key: saved?.apiKey || undefined,
+      base_url: settings.baseUrl || presetUrls[settings.provider] || undefined,
       temperature: settings.agentTemperature,
       top_p: settings.agentTopP,
       max_tokens: settings.agentMaxLength,

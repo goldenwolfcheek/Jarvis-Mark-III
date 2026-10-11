@@ -90,10 +90,15 @@ export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage,
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
-  // Build provider/model lists from saved providers (only those with valid API keys)
+  // Build provider/model lists from saved providers. Key-less locals
+  // (LM Studio/Ollama) are valid too — only require keys for hosted providers.
+  const isKeyLessLocal = (p: { provider: string }) => {
+    const v = (p.provider || '').toLowerCase()
+    return v === 'lmstudio' || v === 'lm_studio' || v === 'lm-studio' || v === 'ollama'
+  }
   const validProviders = useMemo(() => {
     if (!savedProviders || savedProviders.length === 0) return []
-    return savedProviders.filter(p => p.apiKey && p.apiKey.trim() !== '')
+    return savedProviders.filter(p => (p.apiKey && p.apiKey.trim() !== '') || isKeyLessLocal(p))
   }, [savedProviders])
 
   const PROVIDERS = validProviders.length > 0 ? validProviders : [{ provider: providerName || 'opencode-zen', model: modelName || 'big-pickle', apiKey: '', label: providerName || 'opencode-zen' }]

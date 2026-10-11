@@ -81,11 +81,14 @@ class AgentLoop:
         messages = [{"role": "system", "content": system_prompt}] + history
 
         profile = resolve_provider(provider_ui)
-        if not profile.get("api_key"):
+        # Local providers (LM Studio, Ollama) legitimately run key-less.
+        # Only demand a key when the resolved base_url is hosted.
+        base_is_local = any(h in (profile.get("base_url") or "") for h in ("localhost", "127.0.0.1", ":1234", ":11434"))
+        if not profile.get("api_key") and not base_is_local:
             yield {"type": "thinking"}
-            msg = ("I need an API key before I can think. Open Settings and add a provider "
-                   "(OpenCode Zen has free models - get a key at https://opencode.ai/auth), "
-                   "or set OPENCODE_API_KEY in the environment.")
+            msg = ("I need an API key for this provider before I can think. Open Settings "
+                   "→ Model & Provider, pick the provider and paste its key. Local providers "
+                   "(LM Studio, Ollama) need no key — just make sure their server is running.")
             self.db.append_message(session_id, "assistant", msg)
             yield {"type": "delta", "content": msg}
             yield {"type": "done", "content": msg, "session_id": session_id}

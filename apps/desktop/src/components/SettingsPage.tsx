@@ -116,7 +116,7 @@ function GeneralSection({ settings, onUpdate }: { settings: Settings; onUpdate: 
 const PROVIDER_PRESETS: Record<string, { baseUrl: string; needsKey: boolean; note?: string }> = {
   'lmstudio': { baseUrl: 'http://localhost:1234/v1', needsKey: false, note: 'Local. Start the server in LM Studio, no API key needed.' },
   'ollama': { baseUrl: 'http://localhost:11434/v1', needsKey: false, note: 'Local Ollama with an OpenAI-compatible endpoint active.' },
-  'opencode-zen': { baseUrl: 'https://opencode.ai/zen/v1', needsKey: true, note: 'Free key at opencode.ai/auth. Note: some free models are app-exclusive and reject direct API calls.' },
+  'opencode-zen': { baseUrl: 'https://opencode.ai/zen/v1', needsKey: true, note: 'Free models are now restricted to OpenCode\'s own app and reject direct API use — use LM Studio or another provider instead.' },
   'openrouter': { baseUrl: 'https://openrouter.ai/api/v1', needsKey: true, note: 'API key required even for :free models. Model IDs look like meta/model:free.' },
   'openai': { baseUrl: 'https://api.openai.com/v1', needsKey: true },
   'anthropic': { baseUrl: 'https://api.anthropic.com/v1', needsKey: true },
