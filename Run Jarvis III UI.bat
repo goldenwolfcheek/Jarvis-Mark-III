@@ -59,6 +59,7 @@ echo  [0/3] Backend already running on 11711.
 :backend_started
 
 :: Install dependencies on first run only
+:: (npx resolves .cmd shims; machine PATH carries nodejs)
 if not exist "node_modules\" (
     echo  [1/3] First run - installing dependencies...
     call npm install
