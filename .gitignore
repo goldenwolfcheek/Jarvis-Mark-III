@@ -2,3 +2,5 @@
 _t.bat
 runui.bat
 launcher_verify.log
+__pycache__/
+backend/.venv/
