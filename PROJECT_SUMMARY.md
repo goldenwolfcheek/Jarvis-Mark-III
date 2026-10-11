@@ -182,6 +182,19 @@ Ordered so UI is finished first (user's explicit preference), then backends, the
   - **Floating mic button** (Chat tab, stacked above the Chat pill): new `src/hooks/useVoiceInput.ts` — shared Web Speech recognizer (continuous, auto-restart, `en-US`, benign no-speech/aborted error handling) whose final transcripts go straight through `handleSendMessage` so Jarvis answers without the chat overlay being open. In-chat mic and floating mic share the same pipeline via `micActive`/`onMicToggle` props.
   - **Tray + boot (ported from Mark II):** `electron/main.mjs` now has `createTray()` (Show/Quit menu, double-click restore), close-to-tray when the setting is on, and `setBootEnabled` writing the `HKCU\...\Run` registry key (`reg add/delete JarvisMarkIII`), with `--hidden` argv honored at boot. State persists in `userData/window-prefs.json` (not the renderer's localStorage — main-process owned). Settings → Advanced → App Behavior has both toggles, queried/synced through 4 new IPC channels (`get/setTrayEnabled`, `get/setBootEnabled`) typed in `src/types/electron.ts`. Tray icon is currently `nativeImage.createEmpty()` — Windows shows a default icon; a real .ico is a TODO when packaging.
 
+## 5b. Backend Phase — Direction Set (2026-10-10)
+
+UI feature work is parked; next is the backend. User's directives, recorded verbatim-in-spirit:
+
+- **Logic must follow Hermes + Odysseus**, especially: memory, session saving/states, and skills. Stability, speed, reliability, ease-of-use are the acceptance bar.
+- **OpenCode (`https://github.com/anomalyco/opencode`) is now a third reference project** — study its skills and logic patterns. Its free-tier AI models are the intended default for cost-free first-run.
+- **Installation: 2–3 commands max**, or ideally a single exe/bat that installs requirements then launches Jarvis (wrap the existing launcher bats).
+- **Onboarding page** (first run only): add the first provider, choose Jarvis's language, set work permissions. Must be skippable and re-openable from Settings.
+- High-level build order suggestion (fried out in more detail when backend phase starts):
+  1. **Config/REST bridge** between Electron UI and a local Python service on the established port 11711 (Mark II backend as the base, ported modules: agent loop, llm_core, provider profiles, tools registry, memory store, sqlite sessions).
+  2. **Sessions + memory first** (most user-visible: real conversation persistence), then **tools**, then **skills loader**, then **Hermes-specific workspace wiring**, then Odysseus sidecar.
+  3. **Onboarding + installer** last, once the happy path is solid.
+
 ## 6. Current Bugs / Known Issues
 
 - None yet (no code written in this workspace). Bugs found in Mark III source worth pre-empting:
