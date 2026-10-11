@@ -91,8 +91,8 @@ const DEFAULT_SETTINGS = {
   chatOpenPerTab: {} as Record<string, boolean>,
 
   // Advanced
-  backendUrl: 'http://localhost:11711',
-  wsUrl: 'ws://localhost:11711/ws/chat',
+  backendUrl: 'http://127.0.0.1:11711',
+  wsUrl: 'ws://127.0.0.1:11711/ws/chat',
 }
 
 export type Settings = typeof DEFAULT_SETTINGS

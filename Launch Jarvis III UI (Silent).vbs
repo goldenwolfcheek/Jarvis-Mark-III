@@ -47,6 +47,30 @@ End If
 shell.CurrentDirectory = electronDir
 Log "Working directory: " & electronDir
 
+' ── Start backend (Python service on 11711) if not already running ──
+Dim backendDir, backendPy
+backendDir = currentDir & "\backend"
+backendPy = backendDir & "\.venv\Scripts\pythonw.exe"
+If fs.FolderExists(backendDir) Then
+    Dim portBusy
+    portBusy = shell.Run("cmd /c netstat -ano | findstr ""11711.*LISTENING"" >nul 2>&1", 0, True)
+    If portBusy <> 0 Then
+        If fs.FileExists(backendPy) Then
+            Log "Starting backend via venv pythonw..."
+            shell.Run """" & backendPy & """ -m uvicorn jarvis3.server:app --host 127.0.0.1 --port 11711 --ws websockets-sansio""", 0, False
+        ElseIf fs.FileExists(backendDir & "\.venv\Scripts\python.exe") Then
+            Log "Starting backend via venv python (windowless cmd)..."
+            shell.Run "cmd /c cd /d """"" & backendDir & """" && .venv\Scripts\python.exe -m uvicorn jarvis3.server:app --host 127.0.0.1 --port 11711 --ws websockets-sansio""", 0, False
+        Else
+            Log "Backend venv missing - run backend\setup.bat once to install it."
+        End If
+    Else
+        Log "Backend already listening on 11711"
+    End If
+Else
+    Log "No backend directory found - skipping backend start"
+End If
+
 ' Install dependencies if first run
 If Not fs.FolderExists(electronDir & "\node_modules") Then
     Log "First run - running npm install..."

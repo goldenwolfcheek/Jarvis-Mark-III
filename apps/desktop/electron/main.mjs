@@ -17,6 +17,7 @@ const VITE_DEV_URL = 'http://127.0.0.1:5174'
 let mainWindow
 let tray = null
 let quittingToTray = false
+const trayIconPath = path.join(__dirname, '..', 'assets', 'tray-icon.png')
 
 // ── Settings persistence (tray / boot) ─────────────────────────────
 const configDir = app.getPath('userData')
@@ -43,8 +44,7 @@ function setBootEnabled(enabled) {
 
 // ── Tray ──────────────────────────────────────────────────────────
 function createTray() {
-  // 16x16 transparent PNG so Windows uses a default icon path fallback
-  const icon = nativeImage.createEmpty()
+  const icon = fs.existsSync(trayIconPath) ? nativeImage.createFromPath(trayIconPath) : nativeImage.createEmpty()
   tray = new Tray(icon)
   tray.setToolTip('Jarvis Mark III')
   const contextMenu = Menu.buildFromTemplate([
@@ -71,6 +71,7 @@ function createWindow() {
     minHeight: 600,
     frame: false,
     backgroundColor: '#0a0f1a',
+    icon: fs.existsSync(trayIconPath) ? trayIconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,

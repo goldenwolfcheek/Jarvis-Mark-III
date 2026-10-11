@@ -195,6 +195,23 @@ UI feature work is parked; next is the backend. User's directives, recorded verb
   2. **Sessions + memory first** (most user-visible: real conversation persistence), then **tools**, then **skills loader**, then **Hermes-specific workspace wiring**, then Odysseus sidecar.
   3. **Onboarding + installer** last, once the happy path is solid.
 
+## 5c. Backend Phase — First Slice Shipped (2026-10-10)
+
+The backend now exists as a working Python service (`backend/jarvis3/`, FastAPI + uvicorn, `127.0.0.1:11711`), following Hermes (primary), Odysseus and OpenCode logic as researched:
+
+- **API contract researched:** OpenCode Zen base `https://opencode.ai/zen/v1` + `Authorization: Bearer`, free models incl. `big-pickle` (default). Key resolution: UI-saved key > `OPENCODE_API_KEY` env.
+- **state_db.py** — Mark II's SQLite schema (sessions/messages/kv, WAL, FK cascade). Real session persistence, history fetch, rename/delete over REST (`/api/sessions*`).
+- **memory_store.py** — Hermes MEMORY.md (2200 chars) + USER.md (1375) in `~/.jarvis3/memories/`, snapshot into system prompt each turn; assistant updates them via `update_memory`/`update_user_profile` tools.
+- **skills_loader.py** — Hermes/OpenCode SKILL.md directories in `~/.jarvis3/skills/*/SKILL.md` (YAML frontmatter name/description). Compact index in prompt; full body loads on demand via `load_skill` tool. `GET /api/skills` lists them.
+- **provider_router.py** — OpenAI-compatible streaming client with tool-call delta accumulation, ProviderError classification (401/403/429/connect).
+- **agent_loop.py** — Hermes-style: system prompt = personality ⊕ memory ⊕ user ⊕ skills index; bounded tool rounds (MAX_TOOL_TURNS=8); streams `thinking|delta|tool|done|error` events; persists both messages.
+- **server.py** — WS `/ws/chat` (accepts `message` incl. personality/provider/model/api_key/temperature/top_p/max_tokens and a `settings` msg), REST sessions/history/memory/skills/health. **Verified end-to-end** with a WS test client: `session_created → thinking → delta → done`, no-key guidance message path works.
+- **UI wiring:** App.tsx now sends provider credentials + agent params + personality through every WS chat message; sessions list/history/rename/delete all hit the backend REST instead of localStorage; TitleBar connection dot reflects the real backend status.
+- **Launchers auto-start the backend** (skip if 11711 already LISTENING): bat spawns minimally `pythonw -m uvicorn ... --ws websockets-sansio`; silent vbs same via hidden `shell.Run`. `backend/setup.bat` = one-time venv + deps installer.
+- **Tray icon real:** 64px navy/cyan orb PNG at `apps/desktop/assets/tray-icon.png` used for the tray and window; Integrations section reworded to "logic lives in Jarvis, not routed through Odysseus" with external-service fields folded into an Advanced disclosure.
+- **Not yet in backend (queued):** filesystem/terminal/web/research tools, subagent delegation, TTS, context compression, Odysseus-logic feature tools (docs/email/calendar/notes/tasks/research), OpenCode-style permissions model.
+- **Python 3.14 note:** venv at `backend/.venv` (built with `C:\Python314\python.exe`); `uvicorn[standard]` required for WS support — plain uvicorn 404s upgrades.
+
 ## 6. Current Bugs / Known Issues
 
 - None yet (no code written in this workspace). Bugs found in Mark III source worth pre-empting:

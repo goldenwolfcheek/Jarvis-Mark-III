@@ -24,9 +24,7 @@ export default function App() {
   const [activeTab, setActiveTabRaw] = useState(settings.activeTab)
   const [chatOpenPerTab, setChatOpenPerTab] = useState<Map<string, boolean>>(new Map(Object.entries(settings.chatOpenPerTab)))
   const [sidebarOpen, setSidebarOpenRaw] = useState(settings.sidebarOpen)
-  const [sessions, setSessions] = useState<{ id: string; title: string; projectPath?: string }[]>(() => {
-    try { return JSON.parse(localStorage.getItem('jarvis-mark-iii-sessions') || '[]') } catch { return [] }
-  })
+  const [sessions, setSessions] = useState<{ id: string; title: string; projectPath?: string }[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sessionProjectPaths, setSessionProjectPaths] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem('jarvis-mark-iii-session-paths') || '{}') } catch { return {} }
@@ -40,16 +38,24 @@ export default function App() {
   const setActiveTab = useCallback((id: string) => { setActiveTabRaw(id); updateSettings({ activeTab: id }) }, [updateSettings])
   const setSidebarOpen = useCallback((open: boolean) => { setSidebarOpenRaw(open); updateSettings({ sidebarOpen: open }) }, [updateSettings])
 
-  // Persist sessions list
-  useEffect(() => {
-    try { localStorage.setItem('jarvis-mark-iii-sessions', JSON.stringify(sessions)) } catch {}
-  }, [sessions])
+  // Load sessions from the backend
+  const refreshSessions = useCallback(() => {
+    fetch(`${settings.backendUrl}/api/sessions`)
+      .then(r => r.json())
+      .then((list: { id: string; title: string }[]) => setSessions(list.map(s => ({ id: s.id, title: s.title || 'New Conversation' }))))
+      .catch(() => {})
+  }, [settings.backendUrl])
+  useEffect(() => { refreshSessions() }, [refreshSessions])
 
   // Personality — synced with settings
   const [personality, setPersonality] = useState(settings.personality)
 
   const { status, lastMessage, sendMessage } = useWebSocket(settings.wsUrl)
   const streamingMsgIdRef = useRef<string | null>(null)
+  // Reload the session list whenever the connection (re)establishes
+  useEffect(() => { if (status === 'connected') refreshSessions() }, [status, refreshSessions])
+  // Push current personality to the backend whenever it changes
+  useEffect(() => { if (status === 'connected') sendMessage({ type: 'settings', personality: settings.personality }) }, [status, settings.personality, sendMessage])
 
   const isChatOpen = chatOpenPerTab.get(activeTab) ?? false
   const isSettingsOpen = activeTab === 'settings'
@@ -97,7 +103,7 @@ export default function App() {
       case 'session_created':
         if (lastMessage.session_id) {
           setActiveSessionId(lastMessage.session_id)
-          setSessions(prev => [...prev, { id: lastMessage.session_id!, title: 'New Conversation' }])
+          setSessions(prev => prev.some(s => s.id === lastMessage.session_id) ? prev : [...prev, { id: lastMessage.session_id!, title: 'New Conversation' }])
         }
         break
       case 'session_changed':
@@ -124,18 +130,37 @@ export default function App() {
         }
         streamingMsgIdRef.current = null
         setIsStreaming(false)
+        fetch(`${settings.backendUrl}/api/sessions/${lastMessage.session_id || ''}/history`).catch(() => {})
+        refreshSessions()
         break
       case 'error':
         setIsStreaming(false)
         streamingMsgIdRef.current = null
+        // Surface backend errors in the chat as an assistant bubble
+        if (lastMessage.message) {
+          setMessages(prev => [...prev, { id: nextMsgId(), role: 'assistant', content: `⚠️ ${lastMessage.message}`, timestamp: Date.now() }])
+        }
         break
     }
   }, [lastMessage])
 
   const handleSendMessage = useCallback((content: string) => {
     setMessages(prev => [...prev, { id: nextMsgId(), role: 'user', content, timestamp: Date.now() }])
-    sendMessage({ type: 'message', content, session_id: activeSessionId ?? undefined })
-  }, [sendMessage, activeSessionId])
+    const saved = settings.savedProviders.find(p => p.provider === settings.provider && p.apiKey)
+    sendMessage({
+      type: 'message',
+      content,
+      session_id: activeSessionId ?? undefined,
+      personality: settings.personality,
+      provider: saved?.provider || settings.provider,
+      model: saved?.model || settings.model,
+      api_key: saved?.apiKey,
+      base_url: 'https://opencode.ai/zen/v1',
+      temperature: settings.agentTemperature,
+      top_p: settings.agentTopP,
+      max_tokens: settings.agentMaxLength,
+    })
+  }, [sendMessage, activeSessionId, settings])
 
   // Floating mic — voice input without opening the chat overlay.
   // Transcripts go straight through the normal send path.
@@ -154,13 +179,15 @@ export default function App() {
 
   const handleRenameSession = useCallback((id: string, title: string) => {
     setSessions(prev => prev.map(s => s.id === id ? { ...s, title } : s))
-  }, [])
+    fetch(`${settings.backendUrl}/api/sessions/${id}/rename?title=${encodeURIComponent(title)}`, { method: 'POST' }).catch(() => {})
+  }, [settings.backendUrl])
 
   const handleDeleteSession = useCallback((id: string) => {
     setSessions(prev => prev.filter(s => s.id !== id))
     setActiveSessionId(prev => (prev === id ? null : prev))
     setMessages([])
-  }, [])
+    fetch(`${settings.backendUrl}/api/sessions/${id}`, { method: 'DELETE' }).catch(() => {})
+  }, [settings.backendUrl])
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSessionId(id)

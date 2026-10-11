@@ -208,25 +208,27 @@ function AgentSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p
 function IntegrationsSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const od = settings.odysseusFeatures
   const updateFeature = (key: string, v: boolean) => onUpdate({ odysseusFeatures: { ...od, [key]: v } })
-  return (<div><SectionHeader title="Integrations (Odysseus)" description="Odysseus workspace services — documents, email, calendar, notes, tasks and research behind your own local service." />
+  return (<div><SectionHeader title="Integrations (Odysseus)" description="Built-in capabilities modeled on Odysseus's logic — the code lives inside Jarvis itself, nothing routes through a separate service." />
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
-      <div className="text-sm font-medium text-jarvis-text">Connection</div>
-      <SettingRow label="Enable Odysseus" description="Route docs/email/calendar features through Odysseus"><Toggle value={settings.odysseusEnabled} onChange={v => onUpdate({ odysseusEnabled: v })} /></SettingRow>
-      <SettingRow label="Service URL" description="Odysseus FastAPI endpoint (Docker :7011, native :7000)"><TextInput value={settings.odysseusUrl} onChange={v => onUpdate({ odysseusUrl: v })} className="w-full font-mono" /></SettingRow>
-      <SettingRow label="API Key" description="Leave empty if your instance needs no auth"><TextInput type="password" value={settings.odysseusApiKey} onChange={v => onUpdate({ odysseusApiKey: v })} placeholder="Optional" /></SettingRow>
-    </div>
-    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1">
-      <div className="text-sm font-medium text-jarvis-text">Features</div>
-      <SettingRow label="Documents" description="Read/create documents via Odysseus"><Toggle value={od.docs !== false} onChange={v => updateFeature('docs', v)} /></SettingRow>
-      <SettingRow label="Email" description="IMAP/SMTP via Odysseus"><Toggle value={od.email !== false} onChange={v => updateFeature('email', v)} /></SettingRow>
-      <SettingRow label="Calendar" description="CalDAV sync via Odysseus"><Toggle value={od.calendar !== false} onChange={v => updateFeature('calendar', v)} /></SettingRow>
+      <div className="text-sm font-medium text-jarvis-text">Feature switches</div>
+      <SettingRow label="Documents" description="Read/create documents with Jarvis's own tooling (Odysseus-style)"><Toggle value={od.docs !== false} onChange={v => updateFeature('docs', v)} /></SettingRow>
+      <SettingRow label="Email" description="IMAP/SMTP handling built in (Odysseus's logic, ported)"><Toggle value={od.email !== false} onChange={v => updateFeature('email', v)} /></SettingRow>
+      <SettingRow label="Calendar" description="Calendar/CalDAV handling built in"><Toggle value={od.calendar !== false} onChange={v => updateFeature('calendar', v)} /></SettingRow>
       <SettingRow label="Notes"><Toggle value={od.notes !== false} onChange={v => updateFeature('notes', v)} /></SettingRow>
       <SettingRow label="Tasks"><Toggle value={od.tasks !== false} onChange={v => updateFeature('tasks', v)} /></SettingRow>
       <SettingRow label="Research"><Toggle value={od.research !== false} onChange={v => updateFeature('research', v)} /></SettingRow>
     </div>
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border/50 p-3 mt-2">
-      <p className="text-xs text-jarvis-muted">Nothing connects yet — the bridge server (backend phase) talks to Odysseus. Settings persist so the integration can flip on without code changes.</p>
+      <p className="text-xs text-jarvis-muted">These features run inside Jarvis's backend (port 11711) using ported Odysseus logic — no separate service URL or API key is needed. The legacy connection fields below are kept only for future optional external deployments.</p>
     </div>
+    <details className="mt-2 text-xs text-jarvis-muted">
+      <summary className="cursor-pointer hover:text-jarvis-text">Advanced: external Odysseus service (optional)</summary>
+      <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mt-2">
+        <SettingRow label="Enable external service" description="Only if you run an external Odysseus deployment"><Toggle value={settings.odysseusEnabled} onChange={v => onUpdate({ odysseusEnabled: v })} /></SettingRow>
+        <SettingRow label="Service URL" description="External Odysseus FastAPI endpoint (Docker :7011, native :7000)"><TextInput value={settings.odysseusUrl} onChange={v => onUpdate({ odysseusUrl: v })} className="w-full font-mono" /></SettingRow>
+        <SettingRow label="API Key" description="Leave empty if the external instance needs no auth"><TextInput type="password" value={settings.odysseusApiKey} onChange={v => onUpdate({ odysseusApiKey: v })} placeholder="Optional" /></SettingRow>
+      </div>
+    </details>
   </div>)
 }
 
