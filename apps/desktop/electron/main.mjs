@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } from 'electron'
+import { execFile } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -30,7 +31,6 @@ function writePrefs(prefs) {
 // ── Start-on-boot (registry Run key, same as Mark II) ──────────────
 function setBootEnabled(enabled) {
   if (process.platform !== 'win32') return
-  const { execFile } = require('child_process')
   const key = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
   const exe = process.execPath
   // Pass the project root so electron loads this app instance
