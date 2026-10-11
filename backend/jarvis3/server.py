@@ -25,6 +25,7 @@ from jarvis3.state_db import get_state_db
 from jarvis3.memory_store import get_memory_store
 from jarvis3.skills_loader import SkillLoader
 from jarvis3.agent_loop import AgentLoop
+from jarvis3.provider_profiles import all_profiles, overrides_for, needs_api_key
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,17 +58,43 @@ def health():
     return {"ok": True, "service": "jarvis3", "port": PORT}
 
 
+# ── Provider profiles (Mark II pattern) ──
+@app.get("/api/providers")
+def list_providers():
+    """All built-in provider profiles with UI-ready metadata."""
+    return [
+        {
+            "id": p.name,
+            "label": p.display_name,
+            "description": p.description,
+            "base_url": p.base_url,
+            "needs_key": needs_api_key(p),
+            "fallback_models": list(p.fallback_models),
+        }
+        for p in all_profiles()
+    ]
+
+
 # ── Provider models (fetch from any OpenAI-compatible /models) ──
 @app.get("/api/models")
-async def list_models(base_url: str = "https://opencode.ai/zen/v1", api_key: str = ""):
+async def list_models(base_url: str = "", provider: str = "", api_key: str = ""):
+    """Live model list; falls back to the profile's curated fallback_models."""
+    if not base_url and provider:
+        base_url = overrides_for(provider=provider).base_url
     import httpx
-    if not base_url:
-        raise HTTPException(status_code=400, detail="base_url required")
+    if not base_url and not provider:
+        raise HTTPException(status_code=400, detail="base_url or provider required")
     url = base_url.rstrip("/") + "/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(url, headers=headers)
+    except Exception as e:
+        prof = overrides_for(provider=provider) if provider else None
+        models = list(prof.fallback_models) if prof else []
+        return {"ok": bool(models), "models": sorted(models), "source": "fallback" if models else "none",
+                "error": f"Provider unreachable ({e.__class__.__name__})" if not models else None}
+    try:
         if r.status_code == 401:
             body = r.text[:300].lower()
             if "lm studio" in body or "lm_api_token" in body or "token is required" in body:
@@ -77,7 +104,12 @@ async def list_models(base_url: str = "https://opencode.ai/zen/v1", api_key: str
             return {"ok": False, "error": f"{r.status_code} from {url}"}
         data = r.json()
         models = [m.get("id") for m in data.get("data", []) if m.get("id")]
-        return {"ok": True, "models": sorted(models)}
+        if not models and provider:
+            models = list(overrides_for(provider=provider).fallback_models)
+            return {"ok": True if models else False, "models": sorted(models),
+                    "source": "fallback" if models else "none",
+                    "error": None if models else "Provider listed no models and no fallback exists"}
+        return {"ok": True, "models": sorted(models), "source": "live"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

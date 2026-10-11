@@ -2,7 +2,8 @@
 Jarvis Mark III — Provider router.
 Resolves a provider profile (base_url, model, api key) and streams
 OpenAI-compatible chat completions with tool-calling support.
-Default: OpenCode Zen (https://opencode.ai/zen/v1, free tier, big-pickle).
+Provider metadata ports Mark II's ProviderProfile system (itself modelled
+on Hermes' plugin system) — see provider_profiles.py.
 """
 
 import json
@@ -12,47 +13,62 @@ from typing import Any, AsyncIterator, Optional
 
 import httpx
 
-from .constants import DEFAULT_PROVIDER, FALLBACK_ENV_KEYS
+from .constants import DEFAULT_PROVIDER
+from .provider_profiles import env_key_for, needs_api_key, overrides_for
 
 logger = logging.getLogger(__name__)
 
 _TIMEOUT = httpx.Timeout(120.0, connect=15.0)
 
 
-def resolve_api_key(cfg: Optional[dict] = None) -> Optional[str]:
-    """Find an API key: config.providers[].api_key, then env vars."""
+def resolve_api_key(cfg: Optional[dict] = None, provider: str = "") -> Optional[str]:
+    """Find an API key: explicit value > provider-declared env chain > legacy fallbacks."""
     if cfg:
         for p in cfg.get("providers", []):
             k = p.get("api_key")
             if k:
                 return k
-    for env in FALLBACK_ENV_KEYS:
-        v = os.environ.get(env)
-        if v:
-            return v
+    # Provider-declared env-var chain (Mark II profile pattern)
+    key = env_key_for(provider or (cfg or {}).get("provider", "")) if cfg else env_key_for(provider)
+    if key:
+        return key
     return None
 
 
 def resolve_provider(keys_from_ui: Optional[dict] = None) -> dict:
     """
-    Return the active provider profile dict.
-    Priority: UI-saved credentials > default profile (OpenCode Zen).
-    keys_from_ui: {"api_key": str, "provider": str, "model": str, "base_url": str}
+    Return the active provider profile dict (Mark II pattern: declarative
+    profile + UI overrides + env-chain key resolution).
+    keys_from_ui: {"api_key", "provider", "model", "base_url"}
     """
-    profile = dict(DEFAULT_PROVIDER)
-    if keys_from_ui:
-        if keys_from_ui.get("base_url"):
-            profile["base_url"] = keys_from_ui["base_url"]
-        if keys_from_ui.get("provider"):
-            profile["provider"] = keys_from_ui["provider"]
-        if keys_from_ui.get("model"):
-            profile["model"] = keys_from_ui["model"]
-        if keys_from_ui.get("api_key"):
-            profile["api_key"] = keys_from_ui["api_key"]
-    if not profile.get("api_key"):
-        key = resolve_api_key()
-        if key:
-            profile["api_key"] = key
+    prof = overrides_for(
+        provider=(keys_from_ui or {}).get("provider") or DEFAULT_PROVIDER["provider"],
+        base_url=(keys_from_ui or {}).get("base_url") or "",
+        api_key=(keys_from_ui or {}).get("api_key") or "",
+        model=(keys_from_ui or {}).get("model") or "",
+    )
+    profile = {
+        "provider": prof.name,
+        "label": prof.display_name,
+        "base_url": prof.base_url or DEFAULT_PROVIDER["base_url"],
+        "model": (keys_from_ui or {}).get("model") or DEFAULT_PROVIDER["model"],
+        "auth_type": prof.auth_type,
+    }
+    if (keys_from_ui or {}).get("api_key"):
+        profile["api_key"] = keys_from_ui["api_key"]
+    else:
+        env_key = resolve_api_key(provider=prof.name)
+        if env_key:
+            profile["api_key"] = env_key
+        elif prof.auth_type == "api_key":
+            # Last-resort legacy chain
+            from .constants import FALLBACK_ENV_KEYS
+            import os as _os
+            for env in FALLBACK_ENV_KEYS:
+                v = _os.environ.get(env)
+                if v:
+                    profile["api_key"] = v
+                    break
     return profile
 
 
@@ -106,6 +122,10 @@ async def stream_chat(
     }
     if tools:
         body["tools"] = tools
+        # OpenCode Zen upstreams require 'thinking' when tools are present
+        # (ported from Mark II's opencode_zen.ProviderProfile quirk fix).
+        if "opencode" in (base_url or ""):
+            body["thinking"] = {"type": "enabled"}
 
     content_parts: list[str] = []
     tool_calls_acc: dict[int, dict] = {}
