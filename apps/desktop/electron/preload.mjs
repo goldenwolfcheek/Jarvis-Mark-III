@@ -15,4 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.send('openExternal', url),
   getSystemStats: () => ipcRenderer.invoke('getSystemStats'),
   getAppInfo: () => ipcRenderer.invoke('getAppInfo'),
+  getTrayEnabled: () => ipcRenderer.invoke('getTrayEnabled'),
+  setTrayEnabled: (enabled) => ipcRenderer.invoke('setTrayEnabled', enabled),
+  getBootEnabled: () => ipcRenderer.invoke('getBootEnabled'),
+  setBootEnabled: (enabled) => ipcRenderer.invoke('setBootEnabled', enabled),
 })

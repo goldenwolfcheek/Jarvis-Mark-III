@@ -33,6 +33,8 @@ const DEFAULT_SETTINGS = {
 
   // Theme / sphere
   sphereStyle: 'classic' as 'classic' | 'fluid' | 'geodesic' | 'swarm',
+  fluidColorA: '#0a2540',
+  fluidColorB: '#4a9eff',
   sphereIntensity: 1.0,
   particleCount: 1500,
   glowColor: '#2763d1',

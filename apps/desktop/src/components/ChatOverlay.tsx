@@ -16,6 +16,10 @@ interface ChatOverlayProps {
   onProviderChange?: (provider: string) => void
   savedProviders?: { label: string; provider: string; apiKey: string; model: string }[]
   sessionName?: string
+  /** True while the floating mic is listening */
+  micActive?: boolean
+  /** Toggle the floating mic (driven from App so it works with the chat closed) */
+  onMicToggle?: () => void
 }
 
 // ── Simple markdown renderer ─────────────────────────────────────────────
@@ -70,10 +74,17 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 // ── Main Component ───────────────────────────────────────────────────────
-export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage, isStreaming, onStop, modelName, providerName, contentInset = { left: 0, right: 0 }, chatHeight = 60, onModelChange, onProviderChange, savedProviders, sessionName }: ChatOverlayProps) {
+export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage, isStreaming, onStop, modelName, providerName, contentInset = { left: 0, right: 0 }, chatHeight = 60, onModelChange, onProviderChange, savedProviders, sessionName, micActive, onMicToggle }: ChatOverlayProps) {
   const [input, setInput] = useState('')
   const [ttsEnabled, setTtsEnabled] = useState(false)
   const [sttActive, setSttActive] = useState(false)
+  // Floating mic (chat closed) and in-panel mic share one recognition pipeline;
+  // App drives the floating toggle, so mirror its state into sttActive.
+  useEffect(() => { if (micActive !== undefined) setSttActive(micActive) }, [micActive])
+  const toggleStt = useCallback((next: boolean) => {
+    setSttActive(next)
+    if (next) onMicToggle?.()
+  }, [onMicToggle])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -128,8 +139,27 @@ export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage,
       className="fixed bottom-0 z-30 pointer-events-none transition-all duration-150"
       style={{ left: contentInset.left, right: contentInset.right }}
     >
-      {/* Toggle button */}
-      <div className="flex justify-center pb-3 pointer-events-auto">
+      {/* Toggle buttons — mic stacked above Chat (Chat tab) */}
+      <div className={`flex ${onMicToggle ? 'flex-col items-center gap-2' : 'justify-center'} pb-3 pointer-events-auto`}>
+        {/* Floating mic — send a voice message without opening the chat */}
+        {onMicToggle && (
+          <button
+            onClick={onMicToggle}
+            className={`flex items-center justify-center w-10 h-10 rounded-full backdrop-blur-md border transition-all duration-200 ${
+              micActive
+                ? 'text-jarvis-error bg-jarvis-error/20 border-jarvis-error/40 animate-pulse shadow-[0_0_16px_rgba(255,68,68,0.3)]'
+                : 'text-jarvis-cyan/80 hover:text-jarvis-cyan bg-jarvis-surface/70 border-jarvis-border/40 hover:border-jarvis-cyan/30 hover:shadow-[0_0_12px_rgba(0,212,255,0.15)]'
+            }`}
+            title={micActive ? 'Stop voice input' : 'Voice input (sends without opening chat)'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+              <path d="M19 10v2a7 7 0 01-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+              <line x1="8" y1="23" x2="16" y2="23" />
+            </svg>
+          </button>
+        )}
         <button
           onClick={onToggle}
           className="group flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-jarvis-cyan/80 hover:text-jarvis-cyan bg-jarvis-surface/70 backdrop-blur-md border border-jarvis-border/40 rounded-xl transition-all duration-200 hover:bg-jarvis-surface/90 hover:border-jarvis-cyan/30 hover:shadow-[0_0_12px_rgba(0,212,255,0.15)]"
@@ -248,7 +278,7 @@ export default function ChatOverlay({ isOpen, onToggle, messages, onSendMessage,
 
               {/* STT mic */}
               <button
-                onClick={() => setSttActive(!sttActive)}
+                onClick={() => toggleStt(!sttActive)}
                 className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors shrink-0 ${
                   sttActive ? 'text-jarvis-error bg-jarvis-error/15 animate-pulse' : 'text-jarvis-muted hover:text-jarvis-text hover:bg-white/5'
                 }`}

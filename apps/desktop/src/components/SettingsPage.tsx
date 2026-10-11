@@ -346,7 +346,7 @@ function ColorInput({ value, onChange }: { value: string; onChange: (v: string) 
 function AppearanceSection({ settings, onUpdate }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void }) {
   const SPHERE_STYLES = [
     { id: 'classic', label: 'Classic', desc: 'Wireframe lines, HUD rings, starfield' },
-    { id: 'fluid', label: 'Fluid', desc: 'Organic blob, warm gradient dots, no rings' },
+    { id: 'fluid', label: 'Fluid', desc: 'Organic blob, two-color gradient dots, no rings' },
     { id: 'geodesic', label: 'Geodesic', desc: 'Dense structured dome, brighter lines' },
     { id: 'swarm', label: 'Swarm', desc: 'Orbiting comet particles around the core' },
   ] as const
@@ -370,7 +370,11 @@ function AppearanceSection({ settings, onUpdate }: { settings: Settings; onUpdat
       <SettingRow label="Particle Count"><Slider value={settings.particleCount} onChange={v => onUpdate({ particleCount: Math.round(v / 100) * 100 })} min={500} max={10000} step={100} /></SettingRow>
       <SettingRow label="Rotation Speed" description="How fast the sphere spins"><Slider value={settings.sphereRotationSpeed} onChange={v => onUpdate({ sphereRotationSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
       <SettingRow label="Pulse Speed" description="Breathing rhythm"><Slider value={settings.spherePulseSpeed} onChange={v => onUpdate({ spherePulseSpeed: v })} min={0} max={3} step={0.1} unit="x" /></SettingRow>
-      <SettingRow label="Sphere Color" description="Ignored in Fluid style (fixed warm gradient)"><ColorInput value={settings.glowColor} onChange={v => onUpdate({ glowColor: v })} /></SettingRow>
+      <SettingRow label="Sphere Color" description="Wire size for Classic/Geodesic/Swarm"><ColorInput value={settings.glowColor} onChange={v => onUpdate({ glowColor: v })} /></SettingRow>
+      {(settings.sphereStyle || 'classic') === 'fluid' && (<>
+        <SettingRow label="Fluid Gradient — Dark" description="Color at one end of the blob"><ColorInput value={settings.fluidColorA || '#0a2540'} onChange={v => onUpdate({ fluidColorA: v })} /></SettingRow>
+        <SettingRow label="Fluid Gradient — Light" description="Color at the other end"><ColorInput value={settings.fluidColorB || '#4a9eff'} onChange={v => onUpdate({ fluidColorB: v })} /></SettingRow>
+      </>)}
     </div>
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
       <div className="text-sm font-medium text-jarvis-text">Background</div>
@@ -416,7 +420,23 @@ function MemorySection({ settings, onUpdate }: { settings: Settings; onUpdate: (
 // ── Advanced ─────────────────────────────────────────────────────────────
 function AdvancedSection({ settings, onUpdate, onReset }: { settings: Settings; onUpdate: (p: Partial<Settings>) => void; onReset: () => void }) {
   const [showReset, setShowReset] = useState(false)
+  const [trayEnabled, setTrayEnabled] = useState<boolean | null>(null)
+  const [bootEnabled, setBootEnabled] = useState<boolean | null>(null)
+  const api = window.electronAPI
+  useEffect(() => {
+    api?.getTrayEnabled?.().then((v: boolean) => setTrayEnabled(v)).catch(() => setTrayEnabled(false))
+    api?.getBootEnabled?.().then((v: boolean) => setBootEnabled(v)).catch(() => setBootEnabled(false))
+  }, [])
   return (<div><SectionHeader title="Advanced" description="Backend connection and system settings" />
+    <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1 mb-4">
+      <div className="text-sm font-medium text-jarvis-text">App Behavior</div>
+      <SettingRow label="Minimize to System Tray" description="Closing the window keeps Jarvis running in the tray">
+        <Toggle value={trayEnabled ?? false} onChange={v => { setTrayEnabled(v); api?.setTrayEnabled?.(v).then(() => api?.getTrayEnabled?.().then((real: boolean) => setTrayEnabled(real))) }} />
+      </SettingRow>
+      <SettingRow label="Start on System Boot" description="Launch Jarvis automatically when Windows starts (hidden in tray if tray is on)">
+        <Toggle value={bootEnabled ?? false} onChange={v => { setBootEnabled(v); api?.setBootEnabled?.(v).then(() => api?.getBootEnabled?.().then((real: boolean) => setBootEnabled(real))) }} />
+      </SettingRow>
+    </div>
     <div className="bg-jarvis-surface/50 rounded-xl border border-jarvis-border p-4 space-y-1">
       <SettingRow label="Backend URL"><TextInput value={settings.backendUrl} onChange={v => onUpdate({ backendUrl: v })} className="w-full" /></SettingRow>
       <SettingRow label="WebSocket URL"><TextInput value={settings.wsUrl} onChange={v => onUpdate({ wsUrl: v })} className="w-full" /></SettingRow>

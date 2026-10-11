@@ -30,6 +30,10 @@ interface SphereSceneProps {
   pulseSpeedMult?: number
   /** Visual style of the animated sphere */
   style?: SphereStyle
+  /** Fluid style: gradient start color (one end of the blob) */
+  fluidColorA?: string
+  /** Fluid style: gradient end color (other end of the blob) */
+  fluidColorB?: string
   /** Show the background starfield */
   showStarfield?: boolean
   /** Show the HUD rings */
@@ -58,6 +62,8 @@ export default function SphereScene({
   rotationSpeed = 1,
   pulseSpeedMult = 1,
   style = 'classic',
+  fluidColorA = '#0a2540',
+  fluidColorB = '#4a9eff',
   showStarfield = true,
   showRings = true,
 }: SphereSceneProps) {
@@ -74,6 +80,8 @@ export default function SphereScene({
   const rotationSpeedRef = useRef(rotationSpeed)
   const pulseSpeedMultRef = useRef(pulseSpeedMult)
   const styleRef = useRef<SphereStyle>(style)
+  const fluidColorARef = useRef(fluidColorA)
+  const fluidColorBRef = useRef(fluidColorB)
   const showStarfieldRef = useRef(showStarfield)
   const showRingsRef = useRef(showRings)
   useEffect(() => { intensityRef.current = intensity }, [intensity])
@@ -83,6 +91,8 @@ export default function SphereScene({
   useEffect(() => { rotationSpeedRef.current = rotationSpeed }, [rotationSpeed])
   useEffect(() => { pulseSpeedMultRef.current = pulseSpeedMult }, [pulseSpeedMult])
   useEffect(() => { styleRef.current = style }, [style])
+  useEffect(() => { fluidColorARef.current = fluidColorA }, [fluidColorA])
+  useEffect(() => { fluidColorBRef.current = fluidColorB }, [fluidColorB])
   useEffect(() => { showStarfieldRef.current = showStarfield }, [showStarfield])
   useEffect(() => { showRingsRef.current = showRings }, [showRings])
 
@@ -244,6 +254,32 @@ export default function SphereScene({
       posAttr.needsUpdate = true
     }
 
+    // ── Fluid gradient fill ──
+    // Interpolates each vertex between colorA and colorB based on its position,
+    // giving the two-color gradient look from the reference video.
+    function hexToRgb(hex: string, fallback: [number, number, number]): [number, number, number] {
+      const c = hex?.replace('#', '')
+      if (!/^([0-9a-f]{6})$/i.test(c)) return fallback
+      return [parseInt(c.slice(0, 2), 16) / 255, parseInt(c.slice(2, 4), 16) / 255, parseInt(c.slice(4, 6), 16) / 255]
+    }
+    function applyFluidGradient() {
+      if (styleRef.current !== 'fluid') return
+      const a = hexToRgb(fluidColorARef.current, [0.04, 0.15, 0.25])
+      const b = hexToRgb(fluidColorBRef.current, [0.29, 0.62, 1.0])
+      const colors = sphere.colors
+      const dir = sphere.directions
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3
+        // Gradient axis: 0 at colorA, 1 at colorB — darker on one side, lighter on the other
+        const t = (dir[i3] + dir[i3 + 1] + dir[i3 + 2]) / 3 // -1..1 across the blob
+        const k = (t + 1) / 2 // 0..1
+        colors[i3] = a[0] + (b[0] - a[0]) * k
+        colors[i3 + 1] = a[1] + (b[1] - a[1]) * k
+        colors[i3 + 2] = a[2] + (b[2] - a[2]) * k
+      }
+      ;(sphere.geo.attributes.color as THREE.BufferAttribute).needsUpdate = true
+    }
+
     // ── Create objects ──
     const requested = styleRef.current
     const count = Math.max(100, Math.min(10000, particleCountRef.current))
@@ -252,19 +288,7 @@ export default function SphereScene({
 
     const sphere = createSphere(count, CONFIG.sphereRadius, 0.05, requested === 'fluid' ? 0xffffff : baseSphereColor)
     // Fluid uses a gradient attribute instead of a uniform color
-    if (requested === 'fluid') {
-      const colors = sphere.colors
-      for (let i = 0; i < count; i++) {
-        const i3 = i * 3
-        // Vertical gradient: warm orange (top) → hot magenta/pink (edge/bottom)
-        const up = (sphere.directions[i3 + 1] + 1) / 2 // 0 bottom, 1 top
-        // Orange #ff8840 → magenta #ff2d90
-        colors[i3] = up
-        colors[i3 + 1] = 0.15 + up * 0.42
-        colors[i3 + 2] = 0.10 + up * 0.24
-      }
-      ;(sphere.geo.attributes.color as THREE.BufferAttribute).needsUpdate = true
-    }
+    if (requested === 'fluid') applyFluidGradient()
 
     const pairs = requested === 'fluid' || requested === 'swarm'
       ? new Uint16Array(0)
@@ -362,6 +386,8 @@ export default function SphereScene({
     // ── Live material color updates when settings change ──
     let lastGlow = glowColorRef.current
     let lastBg = bgColorRef.current
+    let lastFluidA = fluidColorARef.current
+    let lastFluidB = fluidColorBRef.current
     function applyColors() {
       const g = normalizeHex(glowColorRef.current, 0x2763d1)
       const b = normalizeHex(bgColorRef.current, 0x1e4a8a)
@@ -370,6 +396,7 @@ export default function SphereScene({
       rings.forEach(r => (r.material as THREE.LineBasicMaterial).color.setHex(g))
       ;(bgSphere.material as THREE.PointsMaterial).color.setHex(b)
       ;(swarmMat as THREE.PointsMaterial).color.setHex(0xffffff) // swarm tint stays gradient-driven
+      if (lastStyle === 'fluid') applyFluidGradient() // re-tint if gradient colors changed
     }
     applyColors()
     applyStyle(lastStyle)
@@ -379,12 +406,14 @@ export default function SphereScene({
     function animate() {
       animId = requestAnimationFrame(animate)
       // Live refs
-      if (glowColorRef.current !== lastGlow || bgColorRef.current !== lastBg) {
+      if (glowColorRef.current !== lastGlow || bgColorRef.current !== lastBg || fluidColorARef.current !== lastFluidA || fluidColorBRef.current !== lastFluidB) {
         lastGlow = glowColorRef.current
         lastBg = bgColorRef.current
+        lastFluidA = fluidColorARef.current
+        lastFluidB = fluidColorBRef.current
         applyColors()
       }
-      if (styleRef.current !== lastStyle) applyStyle(styleRef.current)
+      if (styleRef.current !== lastStyle) { applyStyle(styleRef.current); if (styleRef.current === 'fluid') applyFluidGradient() }
       bgSphere.visible = showStarfieldRef.current
       const wantRings = showRingsRef.current && (lastStyle === 'classic' || lastStyle === 'geodesic')
       rings.forEach(r => { r.visible = wantRings })

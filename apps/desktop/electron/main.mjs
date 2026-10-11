@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import os from 'os'
@@ -14,6 +14,54 @@ const isDev = process.env.JARVIS_DEV === '1'
 const VITE_DEV_URL = 'http://127.0.0.1:5174'
 
 let mainWindow
+let tray = null
+let quittingToTray = false
+
+// ── Settings persistence (tray / boot) ─────────────────────────────
+const configDir = app.getPath('userData')
+const prefsFile = path.join(configDir, 'window-prefs.json')
+function readPrefs() {
+  try { return JSON.parse(fs.readFileSync(prefsFile, 'utf-8')) } catch { return {} }
+}
+function writePrefs(prefs) {
+  try { fs.mkdirSync(configDir, { recursive: true }); fs.writeFileSync(prefsFile, JSON.stringify({ ...readPrefs(), ...prefs }, null, 2)) } catch {}
+}
+
+// ── Start-on-boot (registry Run key, same as Mark II) ──────────────
+function setBootEnabled(enabled) {
+  if (process.platform !== 'win32') return
+  const { execFile } = require('child_process')
+  const key = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+  const exe = process.execPath
+  // Pass the project root so electron loads this app instance
+  const value = `"${exe}" "${path.join(__dirname, '..')}" --hidden`
+  const args = enabled
+    ? ['add', key, '/v', 'JarvisMarkIII', '/t', 'REG_SZ', '/d', value, '/f']
+    : ['delete', key, '/v', 'JarvisMarkIII', '/f']
+  execFile('reg', args, (err) => { if (err) console.error('boot registry:', err.message) })
+}
+
+// ── Tray ──────────────────────────────────────────────────────────
+function createTray() {
+  // 16x16 transparent PNG so Windows uses a default icon path fallback
+  const icon = nativeImage.createEmpty()
+  tray = new Tray(icon)
+  tray.setToolTip('Jarvis Mark III')
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show Jarvis', click: () => { showMainWindow() } },
+    { type: 'separator' },
+    { label: 'Quit Jarvis', click: () => { quittingToTray = false; app.quit() } },
+  ])
+  tray.setContextMenu(contextMenu)
+  tray.on('double-click', () => showMainWindow())
+}
+
+function showMainWindow() {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -57,7 +105,29 @@ ipcMain.on('window:maximize', () => {
   if (mainWindow?.isMaximized()) mainWindow.unmaximize()
   else mainWindow?.maximize()
 })
-ipcMain.on('window:close', () => mainWindow?.close())
+ipcMain.on('window:close', () => {
+  if (readPrefs().minimizeToTray && tray) {
+    // Hide to tray instead of quitting (Mark II behavior)
+    mainWindow?.hide()
+  } else {
+    mainWindow?.close()
+  }
+})
+
+// ── Tray / boot settings IPC ──────────────────────────────────────────
+ipcMain.handle('getTrayEnabled', () => !!readPrefs().minimizeToTray)
+ipcMain.handle('setTrayEnabled', (_e, enabled) => {
+  writePrefs({ minimizeToTray: !!enabled })
+  if (enabled && !tray) createTray()
+  else if (!enabled && tray) { tray.destroy(); tray = null }
+  return true
+})
+ipcMain.handle('getBootEnabled', () => !!readPrefs().startOnBoot)
+ipcMain.handle('setBootEnabled', (_e, enabled) => {
+  writePrefs({ startOnBoot: !!enabled })
+  setBootEnabled(!!enabled)
+  return true
+})
 
 // ── File system IPC ────────────────────────────────────────────────────
 ipcMain.handle('selectFolder', async () => {
@@ -152,7 +222,16 @@ ipcMain.handle('getSystemStats', () => {
 ipcMain.handle('getAppInfo', () => ({ version: app.getVersion(), electron: process.versions.electron }))
 
 // ── App lifecycle ────────────────────────────────────────────────────────
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  createWindow()
+  const prefs = readPrefs()
+  if (prefs.minimizeToTray) createTray()
+  // Launched hidden at boot (registry value ends with --hidden)
+  if (process.argv.includes('--hidden') && prefs.minimizeToTray) {
+    // Window starts shown=false; just don't show it
+    mainWindow?.hide()
+  }
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

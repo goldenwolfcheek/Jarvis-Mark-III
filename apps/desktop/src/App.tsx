@@ -13,6 +13,7 @@ import TextEditor, { isCodeFile } from '@/components/TextEditor'
 import CodeEditor from '@/components/CodeEditor'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useSettings } from '@/hooks/useSettings'
+import { useVoiceInput } from '@/hooks/useVoiceInput'
 import type { Message } from '@/types'
 
 let msgIdCounter = 0
@@ -136,6 +137,14 @@ export default function App() {
     sendMessage({ type: 'message', content, session_id: activeSessionId ?? undefined })
   }, [sendMessage, activeSessionId])
 
+  // Floating mic — voice input without opening the chat overlay.
+  // Transcripts go straight through the normal send path.
+  const { listening: micActive, error: micError, toggle: toggleMic } = useVoiceInput({
+    lang: 'en-US',
+    onTranscript: handleSendMessage,
+  })
+  const toggleVoiceButton = activeTab === 'chat' && !isSettingsOpen
+
   const handleNewSession = useCallback(() => {
     setMessages([])
     setActiveSessionId(null)
@@ -234,6 +243,8 @@ export default function App() {
             rotationSpeed={settings.sphereRotationSpeed}
             pulseSpeedMult={settings.spherePulseSpeed}
             style={settings.sphereStyle}
+            fluidColorA={settings.fluidColorA || '#0a2540'}
+            fluidColorB={settings.fluidColorB || '#4a9eff'}
             showStarfield={settings.showStarfield !== false}
             showRings={settings.showRings !== false}
           />
@@ -278,6 +289,7 @@ export default function App() {
           onProviderChange={(p) => updateSettings({ provider: p })}
           savedProviders={settings.savedProviders}
           sessionName={sessions.find(s => s.id === activeSessionId)?.title}
+          {...(toggleVoiceButton && { onMicToggle: toggleMic, micActive: micActive })}
         />
       </div>
     </div>

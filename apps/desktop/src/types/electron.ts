@@ -12,6 +12,10 @@ export interface ElectronAPI {
   openExternal: (url: string) => void
   getSystemStats: () => Promise<{ cpu: number; mem: number }>
   getAppInfo: () => Promise<{ version: string; electron: string }>
+  getTrayEnabled: () => Promise<boolean>
+  setTrayEnabled: (enabled: boolean) => Promise<boolean>
+  getBootEnabled: () => Promise<boolean>
+  setBootEnabled: (enabled: boolean) => Promise<boolean>
 }
 
 declare global {
